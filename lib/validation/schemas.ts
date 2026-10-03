@@ -303,6 +303,9 @@ export const AuctionItemSchema = z.object({
   // Unit fields
   unitType: z.nativeEnum(UnitType).optional(),
   unitId: z.string().optional(),
+  // FID-20261002-005: the seller selects the EXACT owned instance (PlayerUnit.id)
+  // to escrow — whole stack, one write. Blueprint unitId stays catalog identity.
+  unitInstanceId: z.string().min(1).optional(),
   unitStrength: PositiveIntSchema.optional(),
   unitDefense: PositiveIntSchema.optional(),
   // Resource fields

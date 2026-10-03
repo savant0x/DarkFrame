@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuctions } from '@/lib/auctionService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { AuctionSearchFilters, AuctionItemType, ResourceType } from '@/types/auction.types';
 import { UnitType } from '@/types';
 
@@ -184,8 +185,15 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     filters.page = page;
     filters.limit = limit;
 
-    // Execute search
-    const result = await getAuctions(filters);
+    // Execute search. FID-20261002-005: pass the authenticated identity into
+    // the service — clan-only listings are visible only to members of the
+    // frozen seller clan (and the seller); anonymous callers see public
+    // listings only (fail closed, no private detail leaks).
+    const tokenPayload = await getAuthenticatedUser();
+    const result = await getAuctions({
+      ...filters,
+      ...(tokenPayload?.username ? { viewerUsername: tokenPayload.username } : {}),
+    });
 
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });

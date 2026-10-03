@@ -18,9 +18,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { db } from '@/lib/db/connection';
-import { auctions } from '@/lib/db/schema';
+import { auctions, players } from '@/lib/db/schema';
 import { docPathContainment } from '@/lib/db/docPath';
 import { shapeRowAuctions } from '@/lib/db/auctionDocBridge';
 
@@ -103,6 +104,23 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // the consumer expects (column values win — they are the indexed truth).
     const allMatching = matchingRows.map((row) => shapeRowAuctions(auctions, row as unknown as Record<string, unknown>) as unknown as AuctionListing);
 
+    // FID-20261002-005 item 5: private-list authorization on reads. A bid I
+    // placed while IN the clan keeps its settlement eligibility (ratified
+    // policy), but the listing detail is only rendered while I am still a
+    // member of the frozen clan (or am the seller). Outsiders fail closed
+    // without detail or money movement.
+    const [viewerRow] = await db
+      .select({ clanId: players.clanId })
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1);
+    const viewerClanId = viewerRow?.clanId ?? null;
+    const authorizedMatching = allMatching.filter((auction) => {
+      if (!auction.clanOnly) return true;
+      return auction.sellerUsername === username ||
+        (!!auction.sellerClan && auction.sellerClan === viewerClanId);
+    });
+
     const newestOwnBidTime = (auction: AuctionListing): number => {
       const times = (auction.bids ?? [])
         .filter((bid: AuctionBid) => bid.bidderUsername === username)
@@ -112,8 +130,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     };
     allMatching.sort((a, b) => newestOwnBidTime(b) - newestOwnBidTime(a));
 
-    const totalCount = allMatching.length;
-    const pageAuctions = allMatching.slice((page - 1) * limit, (page - 1) * limit + limit);
+    const totalCount = authorizedMatching.length;
+    const pageAuctions = authorizedMatching.slice((page - 1) * limit, (page - 1) * limit + limit);
 
     // Transform results to include user's bid and winning status
     const bids = pageAuctions.map((auction) => {

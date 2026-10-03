@@ -24,6 +24,8 @@ import { randomUUID } from 'node:crypto';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { mapRowToPlayer } from './playerService';
 import { AUCTION_DOC_COLUMNS, shapeRowAuctions } from './db/auctionDocBridge';
+import { withTransactionRetry, type TreasuryTx } from './db/treasuryLock';
+import { calculatePlayerUnitStats } from './armyService';
 import { 
   AuctionListing, 
   AuctionBid, 
@@ -44,6 +46,73 @@ import { planTradeableEscrow, buildDeliveryInstances, buildRefundInstances } fro
 /** auction/trade rows use varchar(24) ids — 24-char uuid-hex slice (migration 0008 PK convention). */
 function generateRowId(): string {
   return randomUUID().replace(/-/g, '').slice(0, 24);
+}
+
+/**
+ * FID-20261002-005: a typed refusal raised INSIDE a listing transaction. The
+ * tx body validates everything (admission, funds, ownership, clan scope)
+ * before any write; a refusal thrown mid-tx rolls the whole transaction back
+ * — zero financial writes — and the outer catch converts it to the call's
+ * result envelope. Non-refusal errors propagate as SERVER_ERROR.
+ */
+class AuctionRefusal extends Error {
+  constructor(
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+    this.name = 'AuctionRefusal';
+  }
+}
+
+function refusalResult(error: unknown): { success: false; message: string; error: string } | null {
+  if (error instanceof AuctionRefusal) {
+    return { success: false, message: error.message, error: error.code };
+  }
+  return null;
+}
+
+/**
+ * SELECT … FOR UPDATE the auction row by domain auctionId inside an existing
+ * transaction (FID-20261002-005 plan item 3): every admission check, claim
+ * transition and money movement below serializes against concurrent bids,
+ * buyouts, cancels and settlement ticks. Returns the shaped domain listing.
+ */
+async function lockAuctionByAuctionId(
+  tx: TreasuryTx,
+  auctionId: string
+): Promise<AuctionListing | null> {
+  const rows = await tx
+    .select()
+    .from(auctions)
+    .where(eq(auctions.auctionId, auctionId))
+    .limit(1)
+    .for('update');
+  const row = rows[0];
+  return row ? shapeAuction(row as unknown as Record<string, unknown>) : null;
+}
+
+/**
+ * Lock every participant's player row in deterministic (sorted-username)
+ * order inside one transaction — the FID-003 idiom — so bid/buyout/cancel/
+ * settlement wallets never deadlock against each other.
+ */
+async function lockPlayersSorted(
+  tx: TreasuryTx,
+  usernames: string[]
+): Promise<Map<string, Player>> {
+  const locked = new Map<string, Player>();
+  for (const username of [...new Set(usernames)].sort()) {
+    const rows = await tx
+      .select()
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1)
+      .for('update');
+    const row = rows[0];
+    if (row) locked.set(username, mapRowToPlayer(row));
+  }
+  return locked;
 }
 
 /**
@@ -112,8 +181,13 @@ function describeAuctionItem(item: AuctionItem): string {
 }
 
 /**
- * Create a new auction listing
- * 
+ * ONE transaction: seller row lock → active-listing ceiling → fee funds →
+ * authoritative clan membership freeze → whole-instance escrow plan → listing
+ * insert → listing fee + escrow + army-totals recompute. Any refusal inside
+ * the transaction throws (AuctionRefusal) and rolls EVERYTHING back — the old
+ * two-autocommit shape (insert, then fee+escrow) could strand an insert
+ * without its wallet write or vice versa.
+ *
  * @param sellerUsername - Username of the seller
  * @param request - Auction creation details
  * @returns Created auction listing
@@ -123,29 +197,8 @@ export async function createAuctionListing(
   request: CreateAuctionRequest
 ): Promise<{ success: boolean; message: string; auction?: AuctionListing; error?: string }> {
   try {
-    // Get seller
-    const [sellerRow] = await db.select().from(players).where(eq(players.username, sellerUsername)).limit(1);
-    const seller = sellerRow ? mapRowToPlayer(sellerRow) : null;
-    if (!seller) {
-      return { success: false, message: 'Seller not found', error: 'SELLER_NOT_FOUND' };
-    }
-
-    // Check active listings limit
-    const [activeRow] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(auctions)
-      .where(and(eq(auctions.sellerUsername, sellerUsername), eq(auctions.status, AuctionStatus.Active)));
-    const activeListings = activeRow?.count ?? 0;
-
-    if (activeListings >= AUCTION_CONFIG.MAX_ACTIVE_LISTINGS) {
-      return {
-        success: false,
-        message: `Maximum ${AUCTION_CONFIG.MAX_ACTIVE_LISTINGS} active listings reached`,
-        error: 'MAX_LISTINGS_REACHED'
-      };
-    }
-
-    // Validate starting bid
+    // Pure request-shape validations BEFORE any database work (zero writes on
+    // refusal; the same bounds the schema layer pins).
     if (request.startingBid < AUCTION_CONFIG.MIN_STARTING_BID) {
       return {
         success: false,
@@ -162,7 +215,6 @@ export async function createAuctionListing(
       };
     }
 
-    // Validate buyout price
     if (request.buyoutPrice && request.buyoutPrice <= request.startingBid) {
       return {
         success: false,
@@ -171,7 +223,6 @@ export async function createAuctionListing(
       };
     }
 
-    // Validate reserve price
     if (request.reservePrice && request.reservePrice < request.startingBid) {
       return {
         success: false,
@@ -180,7 +231,6 @@ export async function createAuctionListing(
       };
     }
 
-    // Validate duration
     if (!AUCTION_CONFIG.DURATIONS.includes(request.duration)) {
       return {
         success: false,
@@ -190,123 +240,127 @@ export async function createAuctionListing(
     }
 
     // Calculate listing fee
-    const listingFee = request.duration === 12 
+    const listingFee = request.duration === 12
       ? AUCTION_CONFIG.LISTING_FEE_12H
       : request.duration === 24
         ? AUCTION_CONFIG.LISTING_FEE_24H
         : AUCTION_CONFIG.LISTING_FEE_48H;
 
-    // Check seller has enough resources for listing fee
-    if (seller.resources.metal < listingFee) {
-      return {
-        success: false,
-        message: `Insufficient metal for listing fee (${listingFee} required)`,
-        error: 'INSUFFICIENT_FUNDS'
-      };
-    }
+    const auction = await withTransactionRetry('auction:create', () =>
+      db.transaction(async (tx): Promise<AuctionListing> => {
+        // Lock the seller row FIRST — the active-listing ceiling, the fee
+        // funds, the escrow plan and the frozen clan membership all read the
+        // locked truth (no check-then-write gap).
+        const sellerRows = await tx
+          .select()
+          .from(players)
+          .where(eq(players.username, sellerUsername))
+          .limit(1)
+          .for('update');
+        const seller = sellerRows[0] ? mapRowToPlayer(sellerRows[0]) : null;
+        if (!seller) throw new AuctionRefusal('SELLER_NOT_FOUND', 'Seller not found');
 
-    // Validate item ownership and lock item
-    const itemValidation = await validateAndLockItem(seller, request.item);
-    if (!itemValidation.success) {
-      return {
-        success: false,
-        message: itemValidation.message,
-        error: itemValidation.error
-      };
-    }
+        // Active listings limit
+        const [activeRow] = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(auctions)
+          .where(and(eq(auctions.sellerUsername, sellerUsername), eq(auctions.status, AuctionStatus.Active)));
+        if ((activeRow?.count ?? 0) >= AUCTION_CONFIG.MAX_ACTIVE_LISTINGS) {
+          throw new AuctionRefusal(
+            'MAX_LISTINGS_REACHED',
+            `Maximum ${AUCTION_CONFIG.MAX_ACTIVE_LISTINGS} active listings reached`
+          );
+        }
 
-    // Calculate sale fee (will be deducted when auction closes)
-    const saleFee = request.clanOnly ? AUCTION_CONFIG.CLAN_SALE_FEE : AUCTION_CONFIG.PUBLIC_SALE_FEE;
+        // Listing fee must be covered BEFORE any escrow plan runs.
+        if (seller.resources.metal < listingFee) {
+          throw new AuctionRefusal(
+            'INSUFFICIENT_FUNDS',
+            `Insufficient metal for listing fee (${listingFee} required)`
+          );
+        }
 
-    // Create auction listing
-    const auctionId = `AUC-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + request.duration * 60 * 60 * 1000);
+        // FID-20261002-005 item 4 (R17): clan-only listings freeze the seller's
+        // AUTHORITATIVE membership (players.clanId) at creation; an unclanned
+        // seller is refused outright — no outsider may hold the 0%-fee path.
+        if (request.clanOnly && !seller.clanId) {
+          throw new AuctionRefusal('CLAN_REQUIRED', 'Join a clan before creating a clan-only listing');
+        }
 
-    const auction: AuctionListing = {
-      auctionId,
-      sellerUsername,
-      // sellerClan: seller.clan, // TODO: Enable in Phase 5 when clans are implemented
-      // Unit escrow (FID-20260914-003): freeze the listed unit into the listing.
-      // The SERVICE owns the snapshot — the route's zod schema strips unknown
-      // keys (no `unitSnapshot` key exists to inject) and the display scalars
-      // are OVERWRITTEN from the escrowed unit (FID-20260919-001): clients
-      // cannot store fabricated unitStrength/unitDefense/unitType values.
-      item: itemValidation.escrowedUnit
-        ? {
-            ...request.item,
-            unitType: itemValidation.escrowedUnit.unitType,
-            unitStrength: itemValidation.escrowedUnit.strength,
-            unitDefense: itemValidation.escrowedUnit.defense,
-            unitSnapshot: itemValidation.escrowedUnit,
-          }
-        : itemValidation.escrowedTradeables
-          ? {
-              ...request.item,
-              tradeableItemQuantity: itemValidation.escrowedTradeables.length,
-              tradeableSnapshot: itemValidation.escrowedTradeables.map((it) => ({
-                itemId: it.id,
-                name: it.name,
-                rarity: it.rarity,
-                description: it.description,
-                // Full-instance fields: delivery/refund rebuild InventoryItems
-                // from these entries — a snapshot missing `type` minted
-                // typeless inventory rows, and one missing foundDate refunded
-                // rows without a timestamp (both caught live by the FID-009
-                // probe).
-                type: it.type,
-                bonusPercent: it.bonusPercent,
-                foundAt: it.foundAt,
-                foundDate: it.foundDate,
-              })),
-            }
-          : request.item,
-      startingBid: request.startingBid,
-      currentBid: request.startingBid,
-      buyoutPrice: request.buyoutPrice,
-      reservePrice: request.reservePrice,
-      bids: [],
-      createdAt: now,
-      expiresAt,
-      duration: request.duration,
-      status: AuctionStatus.Active,
-      listingFee,
-      saleFee,
-      clanOnly: request.clanOnly || false,
-      settled: false
-    };
+        // Validate item ownership and plan the whole-instance escrow.
+        const itemValidation = validateAndPlanItem(seller, request.item);
+        if (!itemValidation.success || !itemValidation.plan) {
+          throw new AuctionRefusal(itemValidation.error ?? 'INVALID_ITEM', itemValidation.message);
+        }
+        const plan = itemValidation.plan;
 
-    // Insert auction (doc-bridge: the bridge synthesizes the stored doc and
-    // fills the mirrored columns + legacy NOT NULL columns from the payload).
-    const insertPayload: Record<string, unknown> = { ...auction, id: generateRowId() };
-    const { syncAuctionDocFields } = await import('./db/auctionDocBridge');
-    syncAuctionDocFields(auctions as never, insertPayload);
-    await db.insert(auctions).values(insertPayload as never);
+        // Sale fee persists on the listing: the 0% clan rate exists only on
+        // rows that passed the clan admission above.
+        const saleFee = request.clanOnly ? AUCTION_CONFIG.CLAN_SALE_FEE : AUCTION_CONFIG.PUBLIC_SALE_FEE;
 
-    // Deduct listing fee and lock item
-    // Merge the listing fee into the item-lock write (fee + locked amount share the
-    // resources_metal column). Spreading lockUpdate OVER $inc REPLACED the fee entry,
-    // so sellers never actually paid the listing fee (live-verified: 10 metal refund).
-    // FID-20260914-003: the lock write may ALSO carry $set (unit escrow removes the
-    // unit from the seller's army) — merge it through or the escrow is dropped.
-    const metalDelta = -listingFee + (itemValidation.lockUpdate?.incMetal ?? 0);
-    const energyDelta = itemValidation.lockUpdate?.incEnergy ?? 0;
-    const lockWrite: PgUpdateSetSource<typeof players> = { ...(itemValidation.lockUpdate?.set ?? {}) };
-    if (metalDelta !== 0) lockWrite.resourcesMetal = sql`${players.resourcesMetal} + ${metalDelta}`;
-    if (energyDelta !== 0) lockWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${energyDelta}`;
-    if (Object.keys(lockWrite).length > 0) {
-      await db.update(players).set(lockWrite).where(eq(players.username, sellerUsername));
-    }
+        const auctionId = `AUC-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + request.duration * 60 * 60 * 1000);
 
-    logger.info('Auction created', { auctionId, seller: sellerUsername, item: request.item });
+        const listing: AuctionListing = {
+          auctionId,
+          sellerUsername,
+          // FID-20261002-005: the frozen clan id — bid/buyout/read eligibility
+          // compares THIS value in-lock; later clan changes cannot widen it.
+          ...(request.clanOnly && seller.clanId ? { sellerClan: seller.clanId } : {}),
+          item: plan.item,
+          startingBid: request.startingBid,
+          currentBid: request.startingBid,
+          buyoutPrice: request.buyoutPrice,
+          reservePrice: request.reservePrice,
+          bids: [],
+          createdAt: now,
+          expiresAt,
+          duration: request.duration,
+          status: AuctionStatus.Active,
+          listingFee,
+          saleFee,
+          clanOnly: request.clanOnly || false,
+          settled: false
+        };
+
+        // Insert auction (doc-bridge: the bridge synthesizes the stored doc and
+        // fills the mirrored columns + legacy NOT NULL columns from the payload).
+        const insertPayload: Record<string, unknown> = { ...listing, id: generateRowId() };
+        const { syncAuctionDocFields } = await import('./db/auctionDocBridge');
+        syncAuctionDocFields(auctions as never, insertPayload);
+        await tx.insert(auctions).values(insertPayload as never);
+
+        // ONE wallet write carries the listing fee, the escrow removal and the
+        // recounted army totals (the shared reducer — escrowed units are NOT
+        // deployed power, FID-20261002-005 item 7).
+        const totals = calculatePlayerUnitStats(plan.unitsAfter ?? seller.units);
+        const metalDelta = -listingFee + (plan.incMetal ?? 0);
+        const energyDelta = plan.incEnergy ?? 0;
+        const walletWrite: PgUpdateSetSource<typeof players> = {
+          totalStrength: totals.totalSTR,
+          totalDefense: totals.totalDEF,
+        };
+        if (plan.unitsAfter) walletWrite.units = plan.unitsAfter;
+        if (plan.inventoryAfter) walletWrite.inventoryItems = plan.inventoryAfter;
+        if (metalDelta !== 0) walletWrite.resourcesMetal = sql`${players.resourcesMetal} + ${metalDelta}`;
+        if (energyDelta !== 0) walletWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${energyDelta}`;
+        await tx.update(players).set(walletWrite).where(eq(players.username, sellerUsername));
+
+        return listing;
+      })
+    );
+
+    logger.info('Auction created', { auctionId: auction.auctionId, seller: sellerUsername, item: request.item });
 
     return {
       success: true,
       message: `Auction created! Listing fee: ${listingFee} metal`,
       auction
     };
-
   } catch (error) {
+    const refused = refusalResult(error);
+    if (refused) return refused;
     logger.error('Error creating auction', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
@@ -317,58 +371,89 @@ export async function createAuctionListing(
 }
 
 /**
- * Validate item ownership and prepare lock update
+ * Validate item ownership and plan the whole-instance escrow (FID-20261002-005
+ * plan item 1). Pure over the LOCKED seller snapshot — every returned write is
+ * applied inside the caller's transaction. The unit branch selects the EXACT
+ * owned instance by id (`unitInstanceId`), escrows the whole stack and removes
+ * it from the army exactly once; the blueprint `unitId` stays catalog identity.
  */
-async function validateAndLockItem(
+function validateAndPlanItem(
   player: Player,
   item: AuctionItem
-): Promise<{
+): {
   success: boolean;
   message: string;
   error?: string;
-  lockUpdate?: { set?: PgUpdateSetSource<typeof players>; incMetal?: number; incEnergy?: number };
-  escrowedUnit?: PlayerUnit;
-  escrowedTradeables?: InventoryItem[];
-}> {
-  
+  plan?: {
+    /** The stored item (escrow snapshot merged in). */
+    item: AuctionItem;
+    /** Seller army after escrow (written as `units` when the item is a unit). */
+    unitsAfter?: PlayerUnit[];
+    /** Seller inventory after escrow (written as `inventoryItems`). */
+    inventoryAfter?: InventoryItem[];
+    /** Relative resource escrow (resource listings). */
+    incMetal?: number;
+    incEnergy?: number;
+  };
+} {
   if (item.itemType === AuctionItemType.Unit) {
-    // Validate unit ownership
-    if (!item.unitId) {
-      return { success: false, message: 'Unit ID is required', error: 'INVALID_ITEM' };
+    // The instance id identifies the EXACT owned stack to escrow (FID-005 R16:
+    // the old blueprint `unitId` match removed ALL matching entries while
+    // escrowing one — three singleton Titans became two lost units).
+    if (!item.unitInstanceId) {
+      return {
+        success: false,
+        message: 'Select the exact unit instance to list',
+        error: 'UNIT_INSTANCE_REQUIRED'
+      };
     }
 
-    const unit = player.units.find((u) => u.unitId === item.unitId);
+    const unit = player.units.find((u) => u.id === item.unitInstanceId);
     if (!unit) {
-      return { success: false, message: 'Unit not found', error: 'UNIT_NOT_FOUND' };
+      return {
+        success: false,
+        message: 'Unit not found (it may have been listed, lost, or your army changed — refresh and retry)',
+        error: 'UNIT_NOT_FOUND'
+      };
     }
 
-    // ESCROW (FID-20260914-003): the unit leaves the seller's army at listing
-    // time — the same pattern as the resource branch's $inc. The old positional
-    // `units.$[unit].locked` $set was a silent no-op on the shim (dotted $set
-    // maps only on doc-tables; players has no doc column), so one unit could be
-    // listed in several live auctions. The full PlayerUnit is snapshotted into
-    // the listing (item.unitSnapshot): the escrow record for delivery AND
-    // refunds, frozen from stat drift while listed. lockUpdate.$set writes the
-    // seller's units array minus the listed unit (direct column — resolves).
+    // Blueprint consistency: a stale catalog id alongside a real instance id
+    // is a fabrication attempt, not a listing.
+    if (item.unitId && item.unitId !== unit.unitId) {
+      return {
+        success: false,
+        message: 'Unit instance does not match the selected unit type',
+        error: 'UNIT_MISMATCH'
+      };
+    }
+
+    const unitsAfter = player.units.filter((u) => u.id !== item.unitInstanceId);
     return {
       success: true,
       message: 'Unit validated and escrowed',
-      lockUpdate: {
-        set: {
-          units: player.units.filter((u) => u.unitId !== item.unitId),
+      plan: {
+        item: {
+          ...item,
+          unitType: unit.unitType,
+          unitStrength: unit.strength,
+          unitDefense: unit.defense,
+          // ESCROW SNAPSHOT: the whole stack leaves the seller's army at
+          // listing time; this frozen copy is the source of truth for delivery
+          // AND refunds (server-derived — clients cannot inject stats).
+          unitSnapshot: unit,
         },
+        unitsAfter,
       },
-      escrowedUnit: unit,
     };
+  }
 
-  } else if (item.itemType === AuctionItemType.Resource) {
-    // Validate resource amount
+  if (item.itemType === AuctionItemType.Resource) {
     if (!item.resourceType || !item.resourceAmount) {
       return { success: false, message: 'Resource type and amount required', error: 'INVALID_ITEM' };
     }
 
-    const currentAmount = item.resourceType === 'metal' 
-      ? player.resources.metal 
+    const currentAmount = item.resourceType === 'metal'
+      ? player.resources.metal
       : player.resources.energy;
 
     if (currentAmount < item.resourceAmount) {
@@ -382,44 +467,63 @@ async function validateAndLockItem(
     return {
       success: true,
       message: 'Resources validated',
-      lockUpdate:
-        item.resourceType === 'energy'
-          ? { incEnergy: -item.resourceAmount }
-          : { incMetal: -item.resourceAmount },
+      plan: {
+        item,
+        ...(item.resourceType === 'energy' ? { incEnergy: -item.resourceAmount } : { incMetal: -item.resourceAmount }),
+      },
     };
+  }
 
-  } else if (item.itemType === AuctionItemType.TradeableItem) {
-    // FID-20260919-009: the FID-20260914-003 gate lifts now that transfer has a
-    // real implementation. Escrow = whole instances (D2b as quantity-N): the
-    // seller's selected instances leave the inventory at listing time (not
-    // shrine-consumable, not double-listable) and the identities freeze into
-    // the listing snapshot — the same law as unit escrow.
-    const plan = planTradeableEscrow(player.inventory.items, item);
-    if (!plan.ok) {
+  if (item.itemType === AuctionItemType.TradeableItem) {
+    // Whole-instance escrow (FID-20260919-009, unchanged contract): the
+    // seller's selected instances leave the inventory at listing time.
+    const escrowPlan = planTradeableEscrow(player.inventory.items, item);
+    if (!escrowPlan.ok) {
       return {
         success: false,
-        message: plan.message ?? 'Tradeable items not found',
-        error: plan.error
+        message: escrowPlan.message ?? 'Tradeable items not found',
+        error: escrowPlan.error
       };
     }
     return {
       success: true,
       message: 'Tradeable items validated and escrowed',
-      lockUpdate: {
-        set: {
-          inventoryItems: plan.remaining,
+      plan: {
+        item: {
+          ...item,
+          tradeableItemQuantity: escrowPlan.escrowed.length,
+          tradeableSnapshot: escrowPlan.escrowed.map((it) => ({
+            itemId: it.id,
+            name: it.name,
+            rarity: it.rarity,
+            description: it.description,
+            // Full-instance fields: delivery/refund rebuild InventoryItems
+            // from these entries (FID-20260919-009 probe lessons).
+            type: it.type,
+            bonusPercent: it.bonusPercent,
+            foundAt: it.foundAt,
+            foundDate: it.foundDate,
+          })),
         },
+        inventoryAfter: escrowPlan.remaining,
       },
-      escrowedTradeables: plan.escrowed,
     };
   }
 
   return { success: false, message: 'Invalid item type', error: 'INVALID_ITEM_TYPE' };
 }
 
+
 /**
- * Place a bid on an auction
- * 
+ * Place a bid on an auction (FID-20261002-005 plan item 3).
+ *
+ * ONE transaction under the auction-row lock: admission (status, expiry,
+ * self-bid, clan scope, ambiguous-legacy refusal, funds) → bidder escrow
+ * debit → previous-leader release → guarded leader-claim patch. The bidder's
+ * and leader's player rows are locked in sorted-username order; ANY refusal
+ * throws inside the transaction and rolls everything back — zero financial
+ * writes. Outbid notification fires post-commit.
+ *
  * @param bidderUsername - Username of the bidder
  * @param request - Bid details
  * @returns Bid result
@@ -429,130 +533,124 @@ export async function placeBid(
   request: PlaceBidRequest
 ): Promise<{ success: boolean; message: string; auction?: AuctionListing; error?: string }> {
   try {
-    // Get bidder
-    const [bidderRow] = await db.select().from(players).where(eq(players.username, bidderUsername)).limit(1);
-    const bidder = bidderRow ? mapRowToPlayer(bidderRow) : null;
-    if (!bidder) {
-      return { success: false, message: 'Bidder not found', error: 'BIDDER_NOT_FOUND' };
-    }
+    const { outbid, itemName } = await withTransactionRetry('auction:bid', () =>
+      db.transaction(async (tx) => {
+        // Lock the auction row FIRST — bids serialize against buyout, cancel
+        // and settlement ticks, which all take the same lock.
+        const auction = await lockAuctionByAuctionId(tx, request.auctionId);
+        if (!auction) throw new AuctionRefusal('AUCTION_NOT_FOUND', 'Auction not found');
+        if (auction.status !== AuctionStatus.Active) {
+          throw new AuctionRefusal('AUCTION_NOT_ACTIVE', 'Auction is not active');
+        }
+        if (new Date() > auction.expiresAt) {
+          throw new AuctionRefusal('AUCTION_EXPIRED', 'Auction has expired');
+        }
+        if (bidderUsername === auction.sellerUsername) {
+          throw new AuctionRefusal('SELF_BID', 'Cannot bid on own auction');
+        }
 
-    // Get auction
-    const auction = await getAuctionByAuctionId(request.auctionId);
-    if (!auction) {
-      return { success: false, message: 'Auction not found', error: 'AUCTION_NOT_FOUND' };
-    }
+        // Ambiguous legacy records (FID-005 item 6): a unit listing with NO
+        // escrow snapshot and NO instance id cannot be honestly delivered —
+        // new activity on it is refused, not guessed from a blueprint.
+        assertListingDeliverable(auction);
 
-    // Validate auction status
-    if (auction.status !== AuctionStatus.Active) {
-      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
-    }
+        // Lock bidder + current leader (deterministic order) before any
+        // wallet read/write.
+        const leader = auction.highestBidder;
+        const locked = await lockPlayersSorted(
+          tx,
+          [bidderUsername, ...(leader ? [leader] : [])]
+        );
+        const bidder = locked.get(bidderUsername);
+        if (!bidder) throw new AuctionRefusal('BIDDER_NOT_FOUND', 'Bidder not found');
 
-    // Check if expired
-    if (new Date() > auction.expiresAt) {
-      return { success: false, message: 'Auction has expired', error: 'AUCTION_EXPIRED' };
-    }
+        // FID-005 item 4: clan-only bids compare the bidder's CURRENT
+        // membership to the FROZEN clan id, in-lock. A clan-only row with no
+        // frozen sellerClan is ambiguous — fail closed. Later seller clan
+        // changes cannot widen eligibility (the id is frozen, not the name).
+        if (auction.clanOnly) {
+          if (!auction.sellerClan || bidder.clanId !== auction.sellerClan) {
+            throw new AuctionRefusal('CLAN_ONLY', 'This is a clan-only auction');
+          }
+        }
 
-    // Check if bidder is seller
-    if (bidderUsername === auction.sellerUsername) {
-      return { success: false, message: 'Cannot bid on own auction', error: 'SELF_BID' };
-    }
+        // Validate bid amount
+        const minBid = auction.currentBid + AUCTION_CONFIG.MIN_BID_INCREMENT;
+        if (request.bidAmount < minBid) {
+          throw new AuctionRefusal(
+            'BID_TOO_LOW',
+            `Bid must be at least ${minBid} (current bid + ${AUCTION_CONFIG.MIN_BID_INCREMENT})`
+          );
+        }
 
-    // Check clan-only restriction (TODO: Enable in Phase 5)
-    // if (auction.clanOnly && bidder.clan !== auction.sellerClan) {
-    //   return { success: false, message: 'This is a clan-only auction', error: 'CLAN_ONLY' };
-    // }
+        // Check bidder has enough resources
+        if (bidder.resources.metal < request.bidAmount) {
+          throw new AuctionRefusal('INSUFFICIENT_FUNDS', 'Insufficient metal for bid');
+        }
 
-    // Validate bid amount
-    const minBid = auction.currentBid + AUCTION_CONFIG.MIN_BID_INCREMENT;
-    if (request.bidAmount < minBid) {
-      return {
-        success: false,
-        message: `Bid must be at least ${minBid} (current bid + ${AUCTION_CONFIG.MIN_BID_INCREMENT})`,
-        error: 'BID_TOO_LOW'
-      };
-    }
+        // ESCROW: deduct the bid from the bidder immediately (FID-20260912-065).
+        await tx
+          .update(players)
+          .set({ resourcesMetal: sql`${players.resourcesMetal} - ${request.bidAmount}` })
+          .where(eq(players.username, bidderUsername));
 
-    // Check bidder has enough resources
-    if (bidder.resources.metal < request.bidAmount) {
-      return {
-        success: false,
-        message: 'Insufficient metal for bid',
-        error: 'INSUFFICIENT_FUNDS'
-      };
-    }
+        // Outbid release: refund the previous leader's escrowed bid exactly
+        // once (under the row lock this runs once per outbid event).
+        if (leader && leader !== bidderUsername && auction.currentBid > 0) {
+          await tx
+            .update(players)
+            .set({ resourcesMetal: sql`${players.resourcesMetal} + ${auction.currentBid}` })
+            .where(eq(players.username, leader));
+        }
 
-    // ESCROW: deduct the bid from the bidder immediately (FID-20260912-065).
-    // Previously bids were honor-system — winners could be broke at settlement.
-    await db
-      .update(players)
-      .set({ resourcesMetal: sql`${players.resourcesMetal} - ${request.bidAmount}` })
-      .where(eq(players.username, bidderUsername));
+        // Create bid
+        const bidId = `BID-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+        const newBid: AuctionBid = {
+          bidId,
+          auctionId: request.auctionId,
+          bidderUsername,
+          bidAmount: request.bidAmount,
+          bidTime: new Date(),
+          isWinning: true
+        };
 
-    // Create bid
-    const bidId = `BID-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-    const newBid: AuctionBid = {
-      bidId,
-      auctionId: request.auctionId,
-      bidderUsername,
-      bidAmount: request.bidAmount,
-      bidTime: new Date(),
-      isWinning: true
-    };
+        // Mark previous winning bid as not winning
+        const updatedBids = auction.bids.map((b: AuctionBid) => ({ ...b, isWinning: false }));
+        updatedBids.push(newBid);
 
-    // Mark previous winning bid as not winning
-    const updatedBids = auction.bids.map((b: AuctionBid) => ({ ...b, isWinning: false }));
-    updatedBids.push(newBid);
+        // Leader claim: the guarded UPDATE remains a defense-in-depth gate —
+        // under the row lock it cannot legitimately return 0 rows; if it does,
+        // the transaction throws and every write above rolls back.
+        const claimRows = await tx
+          .update(auctions)
+          .set(auctionSet({ currentBid: request.bidAmount, highestBidder: bidderUsername, bids: updatedBids }))
+          .where(
+            and(
+              eq(auctions.auctionId, request.auctionId),
+              eq(auctions.status, AuctionStatus.Active)
+            )
+          )
+          .returning({ id: auctions.id });
+        if (claimRows.length === 0) {
+          throw new AuctionRefusal('AUCTION_NOT_ACTIVE', 'Auction is no longer active');
+        }
 
-    // LEADER CLAIM (FID-20260914-003): the leader transition is conditional on
-    // the row STILL being active AND still carrying the leader pair we validated
-    // against. The claim is arbitrated by a guarded UPDATE ... RETURNING
-    // (0 rows = a concurrent buyout/settlement closed the row between
-    // validation and now).
-    const claimed = await db
-      .update(auctions)
-      .set(auctionSet({ currentBid: request.bidAmount, highestBidder: bidderUsername, bids: updatedBids }))
-      .where(
-        and(
-          eq(auctions.auctionId, request.auctionId),
-          eq(auctions.status, AuctionStatus.Active),
-          eq(auctions.currentBid, auction.currentBid),
-          auction.highestBidder
-            ? eq(auctions.highestBidder, auction.highestBidder)
-            : isNull(auctions.highestBidder)
-        )
-      )
-      .returning({ id: auctions.id });
+        return {
+          outbid: leader && leader !== bidderUsername && auction.currentBid > 0
+            ? { username: leader, amount: request.bidAmount, counterparty: bidderUsername }
+            : null,
+          itemName: describeAuctionItem(auction.item),
+        };
+      })
+    );
 
-    if (claimed.length === 0) {
-      // Lost the race (bought out / settled mid-bid): refund THIS bidder's fresh
-      // escrow. The outbid leader was never touched — no other wallet moved.
-      await db
-        .update(players)
-        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${request.bidAmount}` })
-        .where(eq(players.username, bidderUsername));
-      return {
-        success: false,
-        message: 'Auction is no longer active',
-        error: 'AUCTION_NOT_ACTIVE'
-      };
-    }
-
-    // Outbid release: refund the previous leader's escrowed bid (their money was
-    // held since their own placeBid). The claim's pair filter guarantees exactly
-    // one bidder transitioned from (leader, currentBid) to us, so this release
-    // runs exactly once per outbid event. Zero when no prior bids existed.
-    const previousBidder = auction.highestBidder;
-    const previousAmount = auction.currentBid;
-    if (previousBidder && previousAmount > 0) {
-      await db
-        .update(players)
-        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${previousAmount}` })
-        .where(eq(players.username, previousBidder));
-      await notifyAuctionEvent('outbid', previousBidder, {
+    // Post-commit notification (never inside the tx).
+    if (outbid) {
+      await notifyAuctionEvent('outbid', outbid.username, {
         auctionId: request.auctionId,
-        itemName: describeAuctionItem(auction.item),
-        amount: request.bidAmount,
-        counterparty: bidderUsername,
+        itemName,
+        amount: outbid.amount,
+        counterparty: outbid.counterparty,
       });
     }
 
@@ -565,8 +663,9 @@ export async function placeBid(
       message: `Bid placed successfully! You are the highest bidder at ${request.bidAmount} metal`,
       auction: updatedAuction!
     };
-
   } catch (error) {
+    const refused = refusalResult(error);
+    if (refused) return refused;
     logger.error('Error placing bid', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
@@ -577,8 +676,13 @@ export async function placeBid(
 }
 
 /**
- * Instant buyout of an auction
- * 
+ * Instant buyout of an auction (FID-20261002-005 plan item 3).
+ *
+ * ONE transaction under the auction-row lock: admission (buyout price,
+ * status, self-purchase, clan scope, funds) → claim-first close → goods
+ * delivery → money movement → trade history. Delivery failure THROWS, rolling
+ * back the close and every monetary write (no best-effort compensation).
+ *
  * @param buyerUsername - Username of the buyer
  * @param auctionId - Auction ID
  * @returns Buyout result
@@ -588,191 +692,180 @@ export async function buyoutAuction(
   auctionId: string
 ): Promise<{ success: boolean; message: string; trade?: TradeHistory; error?: string }> {
   try {
-    // Get buyer
-    const [buyerRow] = await db.select().from(players).where(eq(players.username, buyerUsername)).limit(1);
-    const buyer = buyerRow ? mapRowToPlayer(buyerRow) : null;
-    if (!buyer) {
-      return { success: false, message: 'Buyer not found', error: 'BUYER_NOT_FOUND' };
-    }
+    const result = await withTransactionRetry('auction:buyout', () =>
+      db.transaction(
+        async (
+          tx
+        ): Promise<{
+          auction: AuctionListing;
+          buyoutPrice: number;
+          sellerReceives: number;
+          buyerCharge: number;
+          leaderRefund: { username: string; amount: number } | null;
+          trade: TradeHistory;
+        }> => {
+          const auction = await lockAuctionByAuctionId(tx, auctionId);
+          if (!auction) throw new AuctionRefusal('AUCTION_NOT_FOUND', 'Auction not found');
+          if (!auction.buyoutPrice) {
+            throw new AuctionRefusal('NO_BUYOUT', 'This auction has no buyout price');
+          }
+          if (auction.status !== AuctionStatus.Active) {
+            throw new AuctionRefusal('AUCTION_NOT_ACTIVE', 'Auction is not active');
+          }
+          if (buyerUsername === auction.sellerUsername) {
+            throw new AuctionRefusal('SELF_PURCHASE', 'Cannot buy own auction');
+          }
 
-    // Get auction
-    const auction = await getAuctionByAuctionId(auctionId);
-    if (!auction) {
-      return { success: false, message: 'Auction not found', error: 'AUCTION_NOT_FOUND' };
-    }
+          assertListingDeliverable(auction);
 
-    // Validate buyout available
-    if (!auction.buyoutPrice) {
-      return { success: false, message: 'This auction has no buyout price', error: 'NO_BUYOUT' };
-    }
+          // Lock ALL participants (buyer, seller, current leader) in
+          // deterministic order before any wallet moves.
+          const leader = auction.highestBidder;
+          const leaderAmount = auction.currentBid;
+          const locked = await lockPlayersSorted(tx, [
+            buyerUsername,
+            auction.sellerUsername,
+            ...(leader ? [leader] : []),
+          ]);
+          const buyer = locked.get(buyerUsername);
+          if (!buyer) throw new AuctionRefusal('BUYER_NOT_FOUND', 'Buyer not found');
+          if (auction.clanOnly) {
+            if (!auction.sellerClan || buyer.clanId !== auction.sellerClan) {
+              throw new AuctionRefusal('CLAN_ONLY', 'This is a clan-only auction');
+            }
+          }
 
-    // Validate auction status
-    if (auction.status !== AuctionStatus.Active) {
-      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
-    }
+          const buyoutPrice = auction.buyoutPrice;
 
-    // Check if buyer is seller
-    if (buyerUsername === auction.sellerUsername) {
-      return { success: false, message: 'Cannot buy own auction', error: 'SELF_PURCHASE' };
-    }
+          if (buyer.resources.metal < buyoutPrice) {
+            throw new AuctionRefusal('INSUFFICIENT_FUNDS', 'Insufficient metal for buyout');
+          }
 
-    // Check clan-only restriction (TODO: Enable in Phase 5)
-    // if (auction.clanOnly && buyer.clan !== auction.sellerClan) {
-    //   return { success: false, message: 'This is a clan-only auction', error: 'CLAN_ONLY' };
-    // }
+          // CLAIM-FIRST CLOSE (FID-20260914-003, now rollback-safe): flip
+          // status Active→Sold before money or goods move. Under the row lock
+          // the claim cannot legitimately lose; a lost claim refuses without
+          // any writes.
+          const claimRows = await tx
+            .update(auctions)
+            .set(
+              auctionSet({
+                status: AuctionStatus.Sold,
+                closedAt: new Date(),
+                settled: true,
+                settledAt: new Date(),
+                finalPrice: buyoutPrice,
+                winnerUsername: buyerUsername,
+              })
+            )
+            .where(and(eq(auctions.auctionId, auctionId), eq(auctions.status, AuctionStatus.Active)))
+            .returning({ id: auctions.id });
+          if (claimRows.length === 0) {
+            throw new AuctionRefusal('AUCTION_NOT_ACTIVE', 'Auction is not active');
+          }
 
-    // Check buyer has enough resources
-    if (buyer.resources.metal < auction.buyoutPrice) {
-      return {
-        success: false,
-        message: 'Insufficient metal for buyout',
-        error: 'INSUFFICIENT_FUNDS'
-      };
-    }
+          // Fees (persisted sale fee — clan 0% only on admitted clan rows).
+          const saleFeeAmount = Math.floor(buyoutPrice * auction.saleFee);
+          const sellerReceives = buyoutPrice - saleFeeAmount;
 
-    // CLAIM-FIRST CLOSE (FID-20260914-003, finding 4): flip status Active→Sold
-    // BEFORE any money or goods move. The claim is arbitrated by a guarded
-    // UPDATE ... RETURNING: 0 rows = a concurrent buyout/settlement won the row
-    // — every later competitor fails validation (status no longer Active).
-    // This is the exactly-once gate for every write below.
-    const claimRows = await db
-      .update(auctions)
-      .set(
-        auctionSet({
-          status: AuctionStatus.Sold,
-          closedAt: new Date(),
-          settled: true,
-          settledAt: new Date(),
-          finalPrice: auction.buyoutPrice,
-          winnerUsername: buyerUsername,
-        })
+          // Delivery INSIDE the transaction: a failure throws → the close,
+          // the delivery and every monetary write roll back together.
+          const transferResult = await transferAuctionItem(
+            tx,
+            auction.sellerUsername,
+            buyerUsername,
+            auction.item
+          );
+          if (!transferResult.success) {
+            throw new AuctionRefusal(
+              transferResult.error ?? 'TRANSFER_FAILED',
+              transferResult.message
+            );
+          }
+
+          // Leader resolution (FID-20260914-003, now rollback-safe):
+          // - Different player → their escrowed bid is refunded.
+          // - Leader IS the buyer → their escrow IS the payment; charge only
+          //   the remainder.
+          let leaderRefund: { username: string; amount: number } | null = null;
+          if (leader && leader !== buyerUsername && leaderAmount > 0) {
+            await tx
+              .update(players)
+              .set({ resourcesMetal: sql`${players.resourcesMetal} + ${leaderAmount}` })
+              .where(eq(players.username, leader));
+            leaderRefund = { username: leader, amount: leaderAmount };
+          }
+          const buyerCharge =
+            leader === buyerUsername ? buyoutPrice - leaderAmount : buyoutPrice;
+          if (buyerCharge > 0) {
+            await tx
+              .update(players)
+              .set({ resourcesMetal: sql`${players.resourcesMetal} - ${buyerCharge}` })
+              .where(eq(players.username, buyerUsername));
+          }
+
+          // Seller receives price minus fee.
+          await tx
+            .update(players)
+            .set({ resourcesMetal: sql`${players.resourcesMetal} + ${sellerReceives}` })
+            .where(eq(players.username, auction.sellerUsername));
+
+          // Trade history rides the same transaction.
+          const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+          const trade: TradeHistory = {
+            tradeId,
+            auctionId,
+            sellerUsername: auction.sellerUsername,
+            buyerUsername,
+            item: auction.item,
+            finalPrice: buyoutPrice,
+            saleFee: saleFeeAmount,
+            sellerReceived: sellerReceives,
+            tradeType: 'buyout',
+            completedAt: new Date()
+          };
+          await tx.insert(tradeHistory).values({
+            id: generateRowId(),
+            tradeId,
+            auctionId,
+            sellerUsername: auction.sellerUsername,
+            buyerUsername,
+            item: auction.item as unknown as Record<string, unknown>,
+            finalPrice: buyoutPrice,
+            saleFee: saleFeeAmount,
+            sellerReceived: sellerReceives,
+            tradeType: 'buyout',
+            completedAt: new Date()
+          });
+
+          return { auction, buyoutPrice, trade, sellerReceives, buyerCharge, leaderRefund };
+        }
       )
-      .where(and(eq(auctions.auctionId, auctionId), eq(auctions.status, AuctionStatus.Active)))
-      .returning({ id: auctions.id });
-    if (claimRows.length === 0) {
-      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
-    }
-
-    // FRESH re-read: the leader under the JUST-CLOSED row. A concurrent placeBid
-    // may have become leader after our earlier read — their escrow is the one
-    // actually held against this auction, so the fresh leader is the honest one.
-    const closedAuction = (await getAuctionByAuctionId(auctionId)) ?? null;
-    const leader = closedAuction?.highestBidder;
-    const leaderAmount = closedAuction?.currentBid ?? 0;
-
-    // Calculate fees
-    const saleFeeAmount = Math.floor(auction.buyoutPrice * auction.saleFee);
-    const sellerReceives = auction.buyoutPrice - saleFeeAmount;
-
-    // Transfer item and resources
-    const transferResult = await transferAuctionItem(
-      auction.sellerUsername,
-      buyerUsername,
-      auction.item
     );
 
-    if (!transferResult.success) {
-      // Roll back the claim so the row stays Active (settlement and other buyers
-      // can proceed); leader escrow untouched — nobody paid yet.
-      await db
-        .update(auctions)
-        .set(
-          auctionSet({
-            status: AuctionStatus.Active,
-            settled: false,
-            settledAt: null,
-            closedAt: null,
-            finalPrice: null,
-            winnerUsername: null,
-          })
-        )
-        .where(eq(auctions.auctionId, auctionId));
-      return {
-        success: false,
-        message: transferResult.message,
-        error: transferResult.error
-      };
-    }
-
-    // Seller receives price minus fee.
-    await db
-      .update(players)
-      .set({ resourcesMetal: sql`${players.resourcesMetal} + ${sellerReceives}` })
-      .where(eq(players.username, auction.sellerUsername));
-
-    // Leader resolution (FID-20260914-003): the previous leader's escrowed bid
-    // comes OUT of this close exactly once (the claim gates re-entry).
-    // - Different player → their metal is refunded; it was never part of this
-    //   sale (pre-FID buyout forfeited it silently).
-    // - Leader IS the buyer → their escrow IS the payment: charge only the
-    //   remainder. (buyout > currentBid by validation, so the remainder is > 0;
-    //   the guard keeps the ledger honest regardless.)
-    if (leader && leaderAmount > 0 && leader !== buyerUsername) {
-      await db
-        .update(players)
-        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${leaderAmount}` })
-        .where(eq(players.username, leader));
-    }
-    const buyerCharge =
-      leader === buyerUsername ? auction.buyoutPrice - leaderAmount : auction.buyoutPrice;
-    if (buyerCharge > 0) {
-      await db
-        .update(players)
-        .set({ resourcesMetal: sql`${players.resourcesMetal} - ${buyerCharge}` })
-        .where(eq(players.username, buyerUsername));
-    }
-
-    void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
+    // Post-commit notifications.
+    void notifyAuctionEvent('sold_seller', result.auction.sellerUsername, {
       auctionId,
-      itemName: describeAuctionItem(auction.item),
-      amount: sellerReceives,
+      itemName: describeAuctionItem(result.auction.item),
+      amount: result.sellerReceives,
       counterparty: buyerUsername,
     });
     void notifyAuctionEvent('sold_winner', buyerUsername, {
       auctionId,
-      itemName: describeAuctionItem(auction.item),
-      amount: auction.buyoutPrice,
-      counterparty: auction.sellerUsername,
+      itemName: describeAuctionItem(result.auction.item),
+      amount: result.buyoutPrice,
+      counterparty: result.auction.sellerUsername,
     });
 
-    // Create trade history (status/winner/finalPrice were set by the claim above)
-    const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-    const trade: TradeHistory = {
-      tradeId,
-      auctionId,
-      sellerUsername: auction.sellerUsername,
-      buyerUsername,
-      item: auction.item,
-      finalPrice: auction.buyoutPrice,
-      saleFee: saleFeeAmount,
-      sellerReceived: sellerReceives,
-      tradeType: 'buyout',
-      completedAt: new Date()
-    };
-
-    await db.insert(tradeHistory).values({
-      id: generateRowId(),
-      tradeId,
-      auctionId,
-      sellerUsername: auction.sellerUsername,
-      buyerUsername,
-      item: auction.item as unknown as Record<string, unknown>,
-      finalPrice: auction.buyoutPrice,
-      saleFee: saleFeeAmount,
-      sellerReceived: sellerReceives,
-      tradeType: 'buyout',
-      completedAt: new Date()
-    });
-
-    logger.info('Auction bought out', { auctionId, buyer: buyerUsername, price: auction.buyoutPrice });
+    logger.info('Auction bought out', { auctionId, buyer: buyerUsername, price: result.buyoutPrice });
 
     return {
       success: true,
-      message: `Successfully purchased! Paid ${auction.buyoutPrice} metal`,
-      trade
+      message: `Successfully purchased! Paid ${result.buyoutPrice} metal`,
+      trade: result.trade
     };
-
   } catch (error) {
+    const refused = refusalResult(error);
+    if (refused) return refused;
     logger.error('Error buying out auction', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
@@ -783,25 +876,26 @@ export async function buyoutAuction(
 }
 
 /**
- * Transfer auction item from seller to buyer
+ * Transfer auction item from seller to buyer — transaction-aware
+ * (FID-20261002-005): every write runs on the caller's `tx` so a delivery
+ * failure rolls back the settlement that requested it.
  */
 async function transferAuctionItem(
+  tx: TreasuryTx,
   fromUsername: string,
   toUsername: string,
   item: AuctionItem
 ): Promise<{ success: boolean; message: string; error?: string }> {
   if (item.itemType === AuctionItemType.Unit) {
-    // Deliver the ESCROWED unit (FID-20260914-003). With unit escrow the goods
-    // left the seller at listing time — delivery is a buyer-side jsonb append of
-    // the snapshotted object. The old seller-side $pull is GONE: the live probe
-    // (scripts/probePullObjectOperand.ts) proved the shim's $pull SQL is invalid
-    // on this engine (no jsonb - jsonb operator), so it could never execute.
-    // Legacy (pre-escrow) listings still find the unit in the seller's army and
-    // remove it via an array-rebuild write — the same idiom placeBid uses for bids.
+    // Deliver the ESCROWED unit. With escrow the goods left the seller at
+    // listing time — delivery is a buyer-side jsonb append of the snapshotted
+    // whole stack. Legacy (pre-escrow) listings can still find the unit in
+    // the seller's army (admission refuses NEW activity on ambiguous records;
+    // already-active legacy bids settle under their admission record).
     let seller: Player | null = null;
     if (!item.unitSnapshot) {
-      const [row] = await db.select().from(players).where(eq(players.username, fromUsername)).limit(1);
-      seller = row ? mapRowToPlayer(row) : null;
+      const rows = await tx.select().from(players).where(eq(players.username, fromUsername)).limit(1);
+      seller = rows[0] ? mapRowToPlayer(rows[0]) : null;
     }
     const unit: PlayerUnit | undefined =
       item.unitSnapshot ?? seller?.units.find((u) => u.unitId === item.unitId);
@@ -811,43 +905,49 @@ async function transferAuctionItem(
     }
 
     if (!item.unitSnapshot && seller) {
-      await db
+      // Legacy unescrowed fallback: remove from the seller's army once.
+      const remaining = seller.units.filter((u) => u.unitId !== item.unitId);
+      const totals = calculatePlayerUnitStats(remaining);
+      await tx
         .update(players)
-        .set({ units: seller.units.filter((u) => u.unitId !== item.unitId) })
+        .set({ units: remaining, totalStrength: totals.totalSTR, totalDefense: totals.totalDEF })
         .where(eq(players.username, fromUsername));
     }
 
-    // Add to buyer (atomic jsonb append — the $push equivalent)
-    await db
+    // Add to buyer (atomic jsonb append) and recount THEIR army totals —
+    // delivered escrow becomes deployed power at the moment of ownership.
+    const buyerRows = await tx.select().from(players).where(eq(players.username, toUsername)).limit(1);
+    const buyerRow = buyerRows[0] ? mapRowToPlayer(buyerRows[0]) : null;
+    const buyerUnits = [...(buyerRow?.units ?? []), unit];
+    const buyerTotals = calculatePlayerUnitStats(buyerUnits);
+    await tx
       .update(players)
       .set({
-        units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([unit])}::jsonb`,
+        units: buyerUnits,
+        totalStrength: buyerTotals.totalSTR,
+        totalDefense: buyerTotals.totalDEF,
       })
       .where(eq(players.username, toUsername));
 
   } else if (item.itemType === AuctionItemType.Resource) {
     // Resources were escrowed from the seller at listing time — credit the buyer.
-    // (FID-20260912-065: the delivery write previously keyed bare 'metal'/'energy',
-    // which map to no column and silently vanished.)
     const amount = item.resourceAmount ?? 0;
     if (item.resourceType === 'energy') {
-      await db
+      await tx
         .update(players)
         .set({ resourcesEnergy: sql`${players.resourcesEnergy} + ${amount}` })
         .where(eq(players.username, toUsername));
     } else {
-      await db
+      await tx
         .update(players)
         .set({ resourcesMetal: sql`${players.resourcesMetal} + ${amount}` })
         .where(eq(players.username, toUsername));
     }
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
-    // FID-20260919-009: deliver the ESCROWED instances to the buyer — fresh
-    // instance ids, identities preserved (name/rarity ride the snapshot).
-    // Escrowed listings are the only kind (the gate means no legacy unescrowed
-    // tradeables exist); a missing snapshot is an integrity fault, not a
-    // silent no-op — fail the settlement so it retries rather than eat goods.
+    // Deliver the ESCROWED instances to the buyer — fresh instance ids,
+    // identities preserved. A missing snapshot is an integrity fault: fail
+    // the settlement so it retries rather than eat goods.
     const escrowed = item.tradeableSnapshot;
     if (!escrowed || escrowed.length === 0) {
       return {
@@ -857,7 +957,7 @@ async function transferAuctionItem(
       };
     }
     const delivery = buildDeliveryInstances(escrowed as never);
-    await db
+    await tx
       .update(players)
       .set({
         inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(delivery)}::jsonb`,
@@ -869,8 +969,50 @@ async function transferAuctionItem(
 }
 
 /**
- * Cancel an auction (seller only, no bids)
- * 
+ * Refund escrowed goods to a username inside a transaction, and recount their
+ * army totals when units return (escrow is not deployed power; the returned
+ * stack is). Used by cancel and expired-no-bid settlement.
+ */
+async function refundEscrowedGoods(
+  tx: TreasuryTx,
+  username: string,
+  item: AuctionItem
+): Promise<void> {
+  if (item.itemType === AuctionItemType.Resource && (item.resourceAmount ?? 0) > 0) {
+    const refundWrite: PgUpdateSetSource<typeof players> = {};
+    if (item.resourceType === 'energy') {
+      refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${item.resourceAmount ?? 0}`;
+    } else {
+      refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${item.resourceAmount ?? 0}`;
+    }
+    await tx.update(players).set(refundWrite).where(eq(players.username, username));
+  }
+  if (item.itemType === AuctionItemType.Unit && item.unitSnapshot) {
+    const rows = await tx.select().from(players).where(eq(players.username, username)).limit(1);
+    const owner = rows[0] ? mapRowToPlayer(rows[0]) : null;
+    const units = [...(owner?.units ?? []), item.unitSnapshot];
+    const totals = calculatePlayerUnitStats(units);
+    await tx
+      .update(players)
+      .set({ units, totalStrength: totals.totalSTR, totalDefense: totals.totalDEF })
+      .where(eq(players.username, username));
+  }
+  if (item.itemType === AuctionItemType.TradeableItem && (item.tradeableSnapshot?.length ?? 0) > 0) {
+    const refundItems = buildRefundInstances(item.tradeableSnapshot as never);
+    await tx
+      .update(players)
+      .set({
+        inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
+      })
+      .where(eq(players.username, username));
+  }
+}
+
+/**
+ * Cancel an auction (seller only, no bids) — FID-20261002-005 plan item 3.
+ * ONE transaction: ownership + state checks under the auction-row lock, claim
+ * close, escrow refunds with army recount. Refusal rolls everything back.
+ *
  * @param sellerUsername - Username of the seller
  * @param auctionId - Auction ID
  * @returns Cancellation result
@@ -880,83 +1022,50 @@ export async function cancelAuction(
   auctionId: string
 ): Promise<{ success: boolean; message: string; error?: string }> {
   try {
-    // Get auction
-    const auction = await getAuctionByAuctionId(auctionId);
-    if (!auction) {
-      return { success: false, message: 'Auction not found', error: 'AUCTION_NOT_FOUND' };
-    }
+    const itemName = await withTransactionRetry('auction:cancel', () =>
+      db.transaction(async (tx) => {
+        const auction = await lockAuctionByAuctionId(tx, auctionId);
+        if (!auction) {
+          throw new AuctionRefusal('AUCTION_NOT_FOUND', 'Auction not found');
+        }
+        if (auction.sellerUsername !== sellerUsername) {
+          throw new AuctionRefusal('NOT_AUTHORIZED', 'Not authorized');
+        }
+        if (auction.status !== AuctionStatus.Active) {
+          throw new AuctionRefusal('AUCTION_NOT_ACTIVE', 'Auction is not active');
+        }
+        if (auction.bids.length > 0) {
+          throw new AuctionRefusal('HAS_BIDS', 'Cannot cancel auction with existing bids');
+        }
 
-    // Verify ownership
-    if (auction.sellerUsername !== sellerUsername) {
-      return { success: false, message: 'Not authorized', error: 'NOT_AUTHORIZED' };
-    }
+        // Claim the close; refunds below run only for the writer that flipped
+        // the row (under the lock this is exactly us — the guard remains
+        // defense in depth).
+        const claimRows = await tx
+          .update(auctions)
+          .set(
+            auctionSet({
+              status: AuctionStatus.Cancelled,
+              closedAt: new Date(),
+              settled: true,
+              settledAt: new Date(),
+            })
+          )
+          .where(and(eq(auctions.auctionId, auctionId), eq(auctions.status, AuctionStatus.Active)))
+          .returning({ id: auctions.id });
+        if (claimRows.length === 0) {
+          throw new AuctionRefusal('AUCTION_NOT_ACTIVE', 'Auction is not active');
+        }
 
-    // Check if active
-    if (auction.status !== AuctionStatus.Active) {
-      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
-    }
+        // Refund escrowed goods to the seller (listing fee non-refundable).
+        await refundEscrowedGoods(tx, sellerUsername, auction.item);
+        return describeAuctionItem(auction.item);
+      })
+    );
 
-    // Check if bids exist
-    if (auction.bids.length > 0) {
-      return {
-        success: false,
-        message: 'Cannot cancel auction with existing bids',
-        error: 'HAS_BIDS'
-      };
-    }
-
-    // CLAIM the close (FID-20260914-003): refunds may only be paid by the writer
-    // that flips the row. The old code updated status unconditionally and then
-    // refunded — two concurrent cancels (double-click) would pay the escrow
-    // twice. The guarded UPDATE arbitrates: 0 rows = someone else closed it first.
-    const claimRows = await db
-      .update(auctions)
-      .set(
-        auctionSet({
-          status: AuctionStatus.Cancelled,
-          closedAt: new Date(),
-          settled: true,
-          settledAt: new Date(),
-        })
-      )
-      .where(and(eq(auctions.auctionId, auctionId), eq(auctions.status, AuctionStatus.Active)))
-      .returning({ id: auctions.id });
-    if (claimRows.length === 0) {
-      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
-    }
-
-    // Refund escrowed goods to the seller (FID-20260912-065 resources,
-    // FID-20260914-003 units). Listing removed the goods from the seller's
-    // wallet/army; cancellation returns them exactly once (claim-guarded above).
-    if (auction.item.itemType === AuctionItemType.Resource && (auction.item.resourceAmount ?? 0) > 0) {
-      const refundWrite: PgUpdateSetSource<typeof players> = {};
-      if (auction.item.resourceType === 'energy') {
-        refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${auction.item.resourceAmount ?? 0}`;
-      } else {
-        refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${auction.item.resourceAmount ?? 0}`;
-      }
-      await db.update(players).set(refundWrite).where(eq(players.username, sellerUsername));
-    }
-    if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
-      await db
-        .update(players)
-        .set({
-          units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
-        })
-        .where(eq(players.username, sellerUsername));
-    }
-    if (auction.item.itemType === AuctionItemType.TradeableItem && (auction.item.tradeableSnapshot?.length ?? 0) > 0) {
-      const refundItems = buildRefundInstances(auction.item.tradeableSnapshot as never);
-      await db
-        .update(players)
-        .set({
-          inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
-        })
-        .where(eq(players.username, sellerUsername));
-    }
     void notifyAuctionEvent('refund_seller', sellerUsername, {
       auctionId,
-      itemName: describeAuctionItem(auction.item),
+      itemName,
     });
 
     logger.info('Auction cancelled', { auctionId, seller: sellerUsername });
@@ -965,8 +1074,9 @@ export async function cancelAuction(
       success: true,
       message: 'Auction cancelled successfully. Listing fee is non-refundable.'
     };
-
   } catch (error) {
+    const refused = refusalResult(error);
+    if (refused) return refused;
     logger.error('Error cancelling auction', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
@@ -977,8 +1087,30 @@ export async function cancelAuction(
 }
 
 /**
- * Get active auctions with filters
- * 
+ * Legacy/ambiguity gate (FID-20261002-005 item 6): a unit listing that
+ * carries NEITHER an escrow snapshot NOR an instance id cannot be honestly
+ * delivered — new bids and buyouts on it are refused instead of guessing a
+ * unit from a nonunique blueprint.
+ */
+function assertListingDeliverable(auction: AuctionListing): void {
+  if (auction.item.itemType !== AuctionItemType.Unit) return;
+  if (!auction.item.unitSnapshot && !auction.item.unitInstanceId) {
+    throw new AuctionRefusal(
+      'AMBIGUOUS_LEGACY_LISTING',
+      'This legacy listing cannot accept new activity (its escrow record is incomplete)'
+    );
+  }
+}
+
+/**
+ * Get active auctions with filters (FID-20261002-005 item 5).
+ *
+ * Clan-only listings are visible ONLY to viewers whose CURRENT clan matches
+ * the listing's frozen `sellerClan` (and to the listing's own seller).
+ * Unidentified callers — including direct service calls with no viewer —
+ * fail closed: they see public listings only, and never the clan scope of
+ * what they cannot see.
+ *
  * @param filters - Search and filter options
  * @returns List of auctions
  */
@@ -986,8 +1118,30 @@ export async function getAuctions(
   filters: AuctionSearchFilters
 ): Promise<{ success: boolean; auctions: AuctionListing[]; total: number; error?: string }> {
   try {
+    // Resolve the viewer's CURRENT membership (authorization rides live
+    // membership; the listing's clan scope itself is the frozen id).
+    let viewerClanId: string | null = null;
+    if (filters.viewerUsername) {
+      const [viewerRow] = await db
+        .select({ clanId: players.clanId })
+        .from(players)
+        .where(eq(players.username, filters.viewerUsername))
+        .limit(1);
+      viewerClanId = viewerRow?.clanId ?? null;
+    }
+
     // Build conditions (auctions schema has direct columns: status, item type, seller)
     const conditions: SQL[] = [eq(auctions.status, AuctionStatus.Active)];
+
+    // Clan-only visibility gate. doc->>'sellerClan' rides the stored doc (no
+    // indexed column needed at this table scale). No viewer → public only.
+    if (filters.viewerUsername) {
+      conditions.push(
+        sql`(${auctions.clanOnly} = 0 OR ${auctions.doc}->>'sellerClan' = ${viewerClanId ?? ''} OR ${auctions.sellerUsername} = ${filters.viewerUsername})`
+      );
+    } else {
+      conditions.push(sql`${auctions.clanOnly} = 0`);
+    }
 
     if (filters.itemType) {
       conditions.push(sql`${auctions.doc}->'item'->>'itemType' = ${filters.itemType}`);
@@ -1090,14 +1244,20 @@ export async function getAuctions(
 // - Items are locked when listed (removed from inventory/units)
 // - Bids lock buyer's resources until outbid or auction ends
 // - Auto-settlement closes auction after grace period
-// - Clan-only auctions have 0% fees
+// - Clan-only auctions have 0% fees (clan scope frozen + enforced)
 // - Reserve price is hidden from buyers
+// - FID-20261002-005: every money/goods move is one transaction under the
+//   auction-row lock; refusals roll back with zero financial writes
 // ============================================================
 // END OF FILE
 // ============================================================
 
 // ============================================================
 // FID-20260912-065 — Settlement engine (expired auctions)
+// FID-20261002-005 — rewritten transactional: claim, delivery, payouts and
+// trade history are ONE transaction per auction; a delivery failure throws
+// and rolls the row back to Active (the next tick retries; nothing is
+// stranded half-paid).
 // ============================================================
 
 /**
@@ -1105,183 +1265,127 @@ export async function getAuctions(
  *
  * Called by the auctionSettlementManager job (every 5 min). An auction is
  * settle-eligible when status is Active AND expiresAt has passed. Outcomes:
- * - With bids  → Sold to highest bidder: item already escrowed from the seller
- *   (delivered via transferAuctionItem), winner's bid was already escrowed at
- *   placeBid (credited to seller minus sale fee; winner receives nothing extra —
- *   their metal left at bid time and the goods arrive here).
+ * - With bids  → Sold to highest bidder: the escrowed item is delivered, the
+ *   seller credited (finalPrice − sale fee); the winner's bid was escrowed at
+ *   placeBid and their admission record stands even if they later left the
+ *   clan (ratified policy: existing valid bids retain eligibility).
  * - No bids    → Expired: escrowed goods return to the seller.
  *
- * Guarded by a conditional update (claim) so concurrent job ticks or a job +
- * a live bid/buyout racing the expiry boundary cannot double-settle: only the
- * writer that flips status Active→settling earns the right to pay out.
+ * Guarded by the auction-row lock plus the conditional claim so concurrent
+ * job ticks or a job + a live bid/buyout racing the expiry boundary cannot
+ * double-settle. Delivery failure throws INSIDE the transaction: the claim,
+ * delivery and payouts roll back together — no stranded escrow, no partial
+ * refund, and the row stays Active for an honest retry.
  */
 async function settleExpiredAuction(
-  auction: AuctionListing
+  auctionId: string
 ): Promise<{ auctionId: string; outcome: 'sold' | 'expired'; error?: string }> {
-  // Claim: atomically flip Active → Expired-claim marker. 0 rows = lost the
-  // race (already settled/cancelled, or a bid/buyout flipped status first).
-  const claimRows = await db
-    .update(auctions)
-    .set(auctionSet({ status: AuctionStatus.Expired, closedAt: new Date() }))
-    .where(and(eq(auctions.auctionId, auction.auctionId), eq(auctions.status, AuctionStatus.Active)))
-    .returning({ id: auctions.id });
-  if (claimRows.length !== 1) {
-    return { auctionId: auction.auctionId, outcome: 'expired', error: 'CLAIM_LOST' };
+  try {
+    return await withTransactionRetry('auction:settle', () =>
+      db.transaction(
+        async (
+          tx
+        ): Promise<{ auctionId: string; outcome: 'sold' | 'expired'; error?: string }> => {
+          const auction = await lockAuctionByAuctionId(tx, auctionId);
+          // Lost the race (already settled/cancelled, or a bid/buyout flipped
+          // status first) — or the row is no longer actually overdue.
+          if (!auction || auction.status !== AuctionStatus.Active) {
+            return { auctionId, outcome: 'expired', error: 'CLAIM_LOST' };
+          }
+          if (new Date() <= auction.expiresAt) {
+            return { auctionId, outcome: 'expired', error: 'CLAIM_LOST' };
+          }
+
+          const hasBids = auction.bids.length > 0 && !!auction.highestBidder;
+
+          if (!hasBids) {
+            // Expired unsold: refund escrowed goods (with army recount), mark
+            // settled — one commit.
+            await refundEscrowedGoods(tx, auction.sellerUsername, auction.item);
+            await tx
+              .update(auctions)
+              .set(
+                auctionSet({
+                  status: AuctionStatus.Expired,
+                  closedAt: new Date(),
+                  settled: true,
+                  settledAt: new Date(),
+                })
+              )
+              .where(eq(auctions.auctionId, auctionId));
+            return { auctionId, outcome: 'expired' };
+          }
+
+          // Sold at hammer: deliver goods, credit seller, record trade.
+          const winner = auction.highestBidder!;
+          const finalPrice = auction.currentBid;
+          const saleFeeAmount = Math.floor(finalPrice * auction.saleFee);
+          const sellerReceives = finalPrice - saleFeeAmount;
+
+          const transferResult = await transferAuctionItem(
+            tx,
+            auction.sellerUsername,
+            winner,
+            auction.item
+          );
+          if (!transferResult.success) {
+            // Delivery failed: throw → the WHOLE transaction rolls back (row
+            // stays Active, winner's escrow untouched, goods stay escrowed).
+            throw new AuctionRefusal(
+              transferResult.error ?? 'TRANSFER_FAILED',
+              transferResult.message
+            );
+          }
+
+          // Winner's metal already left their wallet at bid time — pay seller.
+          await tx
+            .update(players)
+            .set({ resourcesMetal: sql`${players.resourcesMetal} + ${sellerReceives}` })
+            .where(eq(players.username, auction.sellerUsername));
+
+          await tx
+            .update(auctions)
+            .set(
+              auctionSet({
+                status: AuctionStatus.Sold,
+                settled: true,
+                settledAt: new Date(),
+                closedAt: new Date(),
+                finalPrice,
+                winnerUsername: winner,
+              })
+            )
+            .where(eq(auctions.auctionId, auctionId));
+
+          const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+          await tx.insert(tradeHistory).values({
+            id: generateRowId(),
+            tradeId,
+            auctionId,
+            sellerUsername: auction.sellerUsername,
+            buyerUsername: winner,
+            item: auction.item as unknown as Record<string, unknown>,
+            finalPrice,
+            saleFee: saleFeeAmount,
+            sellerReceived: sellerReceives,
+            tradeType: 'auction',
+            completedAt: new Date()
+          });
+
+          return { auctionId, outcome: 'sold' };
+        }
+      )
+    );
+  } catch (error) {
+    if (error instanceof AuctionRefusal && error.code === 'TRANSFER_FAILED') {
+      return { auctionId, outcome: 'expired', error: 'TRANSFER_FAILED' };
+    }
+    throw error;
   }
-
-  const hasBids = auction.bids.length > 0 && !!auction.highestBidder;
-
-  if (!hasBids) {
-    // Expired unsold: refund escrowed goods (FID-20260912-065 resources,
-    // FID-20260914-003 units — the escrowed unit returns to the seller's army).
-    if (
-      auction.item.itemType === AuctionItemType.Resource &&
-      (auction.item.resourceAmount ?? 0) > 0
-    ) {
-      const refundWrite: PgUpdateSetSource<typeof players> = {};
-      if (auction.item.resourceType === 'energy') {
-        refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${auction.item.resourceAmount ?? 0}`;
-      } else {
-        refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${auction.item.resourceAmount ?? 0}`;
-      }
-      await db.update(players).set(refundWrite).where(eq(players.username, auction.sellerUsername));
-    }
-    if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
-      await db
-        .update(players)
-        .set({
-          units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
-        })
-        .where(eq(players.username, auction.sellerUsername));
-    }
-    if (auction.item.itemType === AuctionItemType.TradeableItem && (auction.item.tradeableSnapshot?.length ?? 0) > 0) {
-      const refundItems = buildRefundInstances(auction.item.tradeableSnapshot as never);
-      await db
-        .update(players)
-        .set({
-          inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
-        })
-        .where(eq(players.username, auction.sellerUsername));
-    }
-    void notifyAuctionEvent('expired_seller', auction.sellerUsername, {
-      auctionId: auction.auctionId,
-      itemName: describeAuctionItem(auction.item),
-    });
-
-    await db
-      .update(auctions)
-      .set(auctionSet({ settled: true, settledAt: new Date() }))
-      .where(eq(auctions.auctionId, auction.auctionId));
-    return { auctionId: auction.auctionId, outcome: 'expired' };
-  }
-
-  // Sold at hammer: deliver goods, credit seller, record trade.
-  const winner = auction.highestBidder!;
-  const finalPrice = auction.currentBid;
-  const saleFeeAmount = Math.floor(finalPrice * auction.saleFee);
-  const sellerReceives = finalPrice - saleFeeAmount;
-
-  const transferResult = await transferAuctionItem(
-    auction.sellerUsername,
-    winner,
-    auction.item
-  );
-
-  if (!transferResult.success) {
-    // Delivery failed (e.g. unit no longer present). Refund the winner's escrow
-    // and return goods escrow, then mark Expired-settled so we don't retry forever.
-    await db
-      .update(players)
-      .set({ resourcesMetal: sql`${players.resourcesMetal} + ${finalPrice}` })
-      .where(eq(players.username, winner));
-    if (
-      auction.item.itemType === AuctionItemType.Resource &&
-      (auction.item.resourceAmount ?? 0) > 0
-    ) {
-      const refundWrite: PgUpdateSetSource<typeof players> = {};
-      if (auction.item.resourceType === 'energy') {
-        refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${auction.item.resourceAmount ?? 0}`;
-      } else {
-        refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${auction.item.resourceAmount ?? 0}`;
-      }
-      await db.update(players).set(refundWrite).where(eq(players.username, auction.sellerUsername));
-    }
-    if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
-      await db
-        .update(players)
-        .set({
-          units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
-        })
-        .where(eq(players.username, auction.sellerUsername));
-    }
-    if (auction.item.itemType === AuctionItemType.TradeableItem && (auction.item.tradeableSnapshot?.length ?? 0) > 0) {
-      const refundItems = buildRefundInstances(auction.item.tradeableSnapshot as never);
-      await db
-        .update(players)
-        .set({
-          inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
-        })
-        .where(eq(players.username, auction.sellerUsername));
-    }
-    await db
-      .update(auctions)
-      .set(auctionSet({ settled: true, settledAt: new Date() }))
-      .where(eq(auctions.auctionId, auction.auctionId));
-    return { auctionId: auction.auctionId, outcome: 'expired', error: 'TRANSFER_FAILED' };
-  }
-
-  // Winner's metal already left their wallet at bid time — pay the seller.
-  await db
-    .update(players)
-    .set({ resourcesMetal: sql`${players.resourcesMetal} + ${sellerReceives}` })
-    .where(eq(players.username, auction.sellerUsername));
-
-  void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
-    auctionId: auction.auctionId,
-    itemName: describeAuctionItem(auction.item),
-    amount: sellerReceives,
-    counterparty: winner,
-  });
-  void notifyAuctionEvent('won_settlement', winner, {
-    auctionId: auction.auctionId,
-    itemName: describeAuctionItem(auction.item),
-    amount: finalPrice,
-    counterparty: auction.sellerUsername,
-  });
-
-  await db
-    .update(auctions)
-    .set(
-      auctionSet({
-        status: AuctionStatus.Sold,
-        settled: true,
-        settledAt: new Date(),
-        finalPrice,
-        winnerUsername: winner,
-      })
-    )
-    .where(eq(auctions.auctionId, auction.auctionId));
-
-  const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-  await db.insert(tradeHistory).values({
-    id: generateRowId(),
-    tradeId,
-    auctionId: auction.auctionId,
-    sellerUsername: auction.sellerUsername,
-    buyerUsername: winner,
-    item: auction.item as unknown as Record<string, unknown>,
-    finalPrice,
-    saleFee: saleFeeAmount,
-    sellerReceived: sellerReceives,
-    tradeType: 'auction',
-    completedAt: new Date()
-  });
-
-  return { auctionId: auction.auctionId, outcome: 'sold' };
 }
 
 /**
- * Settle every overdue auction. Idempotent and race-safe (claim guard above).
+ * Settle every overdue auction. Idempotent and race-safe (row-lock + claim).
  * @returns per-run counters for the jobs-status panel.
  */
 export async function settleExpiredAuctions(): Promise<{
@@ -1298,18 +1402,43 @@ export async function settleExpiredAuctions(): Promise<{
       .from(auctions)
       .where(and(eq(auctions.status, AuctionStatus.Active), lt(auctions.expiresAt, new Date())))
       .limit(100);
-    const overdueAuctions = overdue.map((row) => shapeAuction(row as unknown as Record<string, unknown>));
 
     let sold = 0;
     let expired = 0;
     let errors = 0;
-    for (const auction of overdueAuctions) {
+    for (const row of overdue) {
+      const auctionId = (row as unknown as Record<string, unknown>).auctionId;
+      if (typeof auctionId !== 'string') continue;
       try {
-        const result = await settleExpiredAuction(auction);
+        const result = await settleExpiredAuction(auctionId);
         if (result.error === 'CLAIM_LOST') continue;
-        if (result.outcome === 'sold') sold += 1;
-        else expired += 1;
-        if (result.error === 'TRANSFER_FAILED') errors += 1;
+        if (result.outcome === 'sold') {
+          sold += 1;
+          const shaped = shapeAuction(row as unknown as Record<string, unknown>);
+          void notifyAuctionEvent('sold_seller', shaped.sellerUsername, {
+            auctionId,
+            itemName: describeAuctionItem(shaped.item),
+            amount: shaped.currentBid,
+            counterparty: shaped.highestBidder ?? '',
+          });
+          void notifyAuctionEvent('won_settlement', shaped.highestBidder ?? '', {
+            auctionId,
+            itemName: describeAuctionItem(shaped.item),
+            amount: shaped.currentBid,
+            counterparty: shaped.sellerUsername,
+          });
+        } else {
+          expired += 1;
+          if (result.error === 'TRANSFER_FAILED') {
+            errors += 1;
+          } else {
+            const shaped = shapeAuction(row as unknown as Record<string, unknown>);
+            void notifyAuctionEvent('expired_seller', shaped.sellerUsername, {
+              auctionId,
+              itemName: describeAuctionItem(shaped.item),
+            });
+          }
+        }
       } catch (err) {
         errors += 1;
         logger.error('Settlement failed for auction', err instanceof Error ? err : new Error(String(err)));

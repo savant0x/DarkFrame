@@ -49,7 +49,9 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
   const [resourceType, setResourceType] = useState<ResourceType>(ResourceType.Metal);
   const [resourceAmount, setResourceAmount] = useState('1000');
   
-  // Unit listing state: value is the unitId of a real owned unit
+  // Unit listing state: value is the unitInstanceId of a REAL owned stack
+  // (FID-20261002-005: selection is by instance id — the exact stack that
+  // leaves the army is the exact stack the server escrows).
   const [unitId, setUnitId] = useState<string>('');
   
   // Pricing state
@@ -125,12 +127,16 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
         resourceAmount: parseInt(resourceAmount, 10)
       };
     } else if (itemType === AuctionItemType.Unit) {
-      // FID-20260919-001: unitId only — stat fields are server-derived from the
-      // escrowed unit; nothing client-supplied is stored or displayed.
+      // FID-20261002-005: unitInstanceId selects the EXACT owned instance;
+      // blueprint unitId/unitType ride along as catalog identity. Stat fields
+      // are server-derived from the escrowed unit — nothing client-supplied
+      // is stored or displayed.
+      const selected = ownedUnits.find((u) => u.id === unitId);
       return {
         itemType: AuctionItemType.Unit,
-        unitId,
-        unitType: ownedUnits.find((u) => u.unitId === unitId)?.unitType,
+        unitInstanceId: unitId,
+        unitId: selected?.unitId,
+        unitType: selected?.unitType,
       };
     } else {
       // FID-20260919-009: instance ids + quantity — the snapshot is server-derived.
@@ -327,14 +333,14 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
                 >
                   <option value="">— Choose a unit —</option>
                   {ownedUnits.map((u) => (
-                    <option key={u.unitId} value={u.unitId}>
-                      {u.name}{u.quantity > 1 ? ` ×${u.quantity}` : ''} — STR {u.strength} / DEF {u.defense}
+                    <option key={u.id} value={u.id}>
+                      {u.name}{u.quantity > 1 ? ` ×${u.quantity} (whole stack)` : ''} — STR {u.strength} / DEF {u.defense}
                     </option>
                   ))}
                 </select>
               )}
               <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
-                Listing escrows the unit (it leaves your army until sold or the auction ends).
+                Listing escrows the WHOLE stack (it leaves your army until sold or the auction ends).
               </p>
             </div>
           )}

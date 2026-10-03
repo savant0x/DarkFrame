@@ -42,6 +42,10 @@ export interface AuctionItem {
   // For units
   unitType?: UnitType;
   unitId?: string;
+  /** FID-20261002-005: the seller's EXACT unit instance id (PlayerUnit.id).
+   * Request-time identifier of the one owned stack being escrowed — the stored
+   * item keeps it as provenance; `unitId` remains the catalog identity. */
+  unitInstanceId?: string;
   unitStrength?: number;
   unitDefense?: number;
   
@@ -251,6 +255,11 @@ export interface AuctionSearchFilters {
   clanOnly?: boolean;
   
   sellerUsername?: string;
+
+  /** FID-20261002-005: authenticated viewer whose identity gates clan-only
+   * listings (members of the frozen seller clan see them; everyone else,
+   * including anonymous/unidentified callers, gets only public listings). */
+  viewerUsername?: string;
 
   /** FID-20260919-008: case-insensitive match on the item's unitType or resourceType inside the listing doc. */
   name?: string;

@@ -92,6 +92,7 @@ function makeDb() {
       return b;
     });
     add('returning', () => Promise.resolve([state.rows[0] ?? {}]));
+    add('for', () => b); // FID-20261002-005: SELECT … FOR UPDATE no-op chain
     b.then = (resolve: (v: unknown) => void, reject: (e: unknown) => void) => {
       try {
         const table = b.__table as object | undefined;
@@ -122,20 +123,27 @@ function makeDb() {
     };
     return b;
   };
-  return {
-    select: () => builder(),
-    insert: (t: unknown) => {
-      const b = builder(t);
-      b.__insert = true;
-      return b;
-    },
-    update: (t: unknown) => {
-      const b = builder(t);
-      b.__update = true;
-      return b;
-    },
-    execute: () => Promise.resolve({ rows: [] }),
-  } as unknown as Record<string, unknown>;
+  const handle = () => {
+    const d = {
+      select: () => builder(),
+      insert: (t: unknown) => {
+        const b = builder(t);
+        b.__insert = true;
+        return b;
+      },
+      update: (t: unknown) => {
+        const b = builder(t);
+        b.__update = true;
+        return b;
+      },
+      execute: () => Promise.resolve({ rows: [] }),
+    } as unknown as Record<string, unknown>;
+    // FID-20261002-005: db.transaction passes a tx handle with the SAME
+    // builder shape (the established mock convention).
+    (d as { transaction: unknown }).transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(handle());
+    return d;
+  };
+  return handle();
 }
 
 vi.mock('@/lib/db', () => ({ db: makeDb() }));
@@ -198,6 +206,7 @@ describe('FID-20260919-001: stored unit-listing stats derive from the escrowed u
       item: {
         // client lies: whatever numbers it sends must NOT be stored
         itemType: AuctionItemType.Unit,
+        unitInstanceId: 'u-123',
         unitId: 'unit-123',
         unitType: UnitType.T1_Infantry,
         unitStrength: 9999,
@@ -220,11 +229,13 @@ describe('FID-20260919-001: stored unit-listing stats derive from the escrowed u
     expect(stored.unitDefense).toBe(40);
     // unitType resolved from the real unit, not the client's claim
     expect(stored.unitType).toBe(UnitType.T2_Marksman);
+    // FID-20261002-005: the instance id is stored as provenance
+    expect(stored.unitInstanceId).toBe('u-123');
   });
 
-  it('still escrows: the unit leaves the seller army (lock write)', async () => {
+  it('still escrows: the exact unit instance leaves the seller army (lock write)', async () => {
     const result = await createAuctionListing('seller1', {
-      item: { itemType: AuctionItemType.Unit, unitId: 'unit-123' },
+      item: { itemType: AuctionItemType.Unit, unitInstanceId: 'u-123', unitId: 'unit-123' },
       startingBid: 1000,
       duration: 24,
     });
@@ -232,12 +243,16 @@ describe('FID-20260919-001: stored unit-listing stats derive from the escrowed u
     const lock = state.playerPatches.find((p) => Array.isArray(p.units));
     expect(lock).toBeDefined();
     expect((lock!.units as PlayerUnit[]).some((u) => u.unitId === 'unit-123')).toBe(false);
+    // FID-20261002-005 item 7: the recounted army totals ride the same write
+    expect(lock!.totalStrength).toBe(0);
+    expect(lock!.totalDefense).toBe(0);
   });
 
-  it('rejects a unitId the seller does not own', async () => {
+  it('rejects a unitInstanceId the seller does not own', async () => {
     const result = await createAuctionListing('seller1', {
       item: {
         itemType: AuctionItemType.Unit,
+        unitInstanceId: 'foreign-instance',
         unitId: 'foreign-unit',
         unitStrength: 1,
         unitDefense: 1,
@@ -250,14 +265,28 @@ describe('FID-20260919-001: stored unit-listing stats derive from the escrowed u
     expect(state.insertCalls.some((c) => c.table === 'auctions')).toBe(false);
   });
 
-  it('rejects a unit listing with no unitId at all (the old modal payload)', async () => {
+  it('rejects a blueprint id that does not match the selected instance (fabrication)', async () => {
     const result = await createAuctionListing('seller1', {
-      item: { itemType: AuctionItemType.Unit, unitType: UnitType.T1_Infantry, unitStrength: 100, unitDefense: 50 },
+      item: {
+        itemType: AuctionItemType.Unit,
+        unitInstanceId: 'u-123',
+        unitId: 'different-blueprint',
+      },
       startingBid: 1000,
       duration: 24,
     });
     expect(result.success).toBe(false);
-    expect(result.error).toBe('INVALID_ITEM');
+    expect(result.error).toBe('UNIT_MISMATCH');
+  });
+
+  it('rejects a unit listing with no unitInstanceId at all (blueprint-only payload)', async () => {
+    const result = await createAuctionListing('seller1', {
+      item: { itemType: AuctionItemType.Unit, unitId: 'unit-123', unitType: UnitType.T1_Infantry, unitStrength: 100, unitDefense: 50 },
+      startingBid: 1000,
+      duration: 24,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('UNIT_INSTANCE_REQUIRED');
   });
 });
 

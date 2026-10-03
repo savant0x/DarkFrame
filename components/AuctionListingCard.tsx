@@ -190,12 +190,14 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
     
     if (item.itemType === AuctionItemType.Unit) {
       // FID-20260919-001: display rides the pure helper — snapshot truth first,
-      // legacy scalars as fallback.
+      // legacy scalars as fallback. FID-20261002-005: the escrowed WHOLE stack
+      // quantity is shown truthfully (qty × per-unit stats).
       const { strength: str, defense: def } = getItemDisplayStats(item);
+      const qty = item.unitSnapshot?.quantity ?? 1;
       return {
         icon: '⚔️',
         name: `${item.unitType}`,
-        details: `Str: ${str} | Def: ${def}`
+        details: `Str: ${str} | Def: ${def}${qty > 1 ? ` | Qty: ${qty} (whole stack)` : ''}`
       };
     } else if (item.itemType === AuctionItemType.Resource) {
       return {

@@ -157,9 +157,15 @@ const { state, playersTable, auctionsTable, tradesTable, mockDb } = vi.hoisted((
     }
   };
 
-  const applyAuctionPatch = (patch: Row) => {
+  const applyAuctionPatch = (patch: Row, auctionId?: unknown) => {
     state.auctionPatches.push({ ...patch });
-    const row = state.auctions[0];
+    // FID-20261002-005: settlement re-locks by id, so the canonical row may
+    // live in state.overdue — patch whichever array holds the auction.
+    const row =
+      (auctionId !== undefined
+        ? state.auctions.find((r) => r.auctionId === auctionId) ??
+          state.overdue.find((r) => r.auctionId === auctionId)
+        : undefined) ?? state.auctions[0];
     if (row) {
       for (const [k, v] of Object.entries(patch)) {
         if (v && typeof v === 'object' && 'queryChunks' in (v as object)) continue; // doc fragment
@@ -180,6 +186,7 @@ const { state, playersTable, auctionsTable, tradesTable, mockDb } = vi.hoisted((
     limit: () => Promise<unknown[]>;
     offset: () => Promise<unknown[]>;
     orderBy: () => Promise<unknown[]>;
+    for: () => Promise<unknown[]>;
   } => {
     const p = apply();
     return Object.assign(p, {
@@ -187,11 +194,15 @@ const { state, playersTable, auctionsTable, tradesTable, mockDb } = vi.hoisted((
       limit: () => p,
       offset: () => p,
       orderBy: () => p,
+      // FID-20261002-005: SELECT … FOR UPDATE is a no-op chain on the mock
+      // (single-connection simulation — no real lock contention to model).
+      for: () => p,
     }) as Promise<unknown[]> & {
       returning: () => Promise<unknown[]>;
       limit: () => Promise<unknown[]>;
       offset: () => Promise<unknown[]>;
       orderBy: () => Promise<unknown[]>;
+      for: () => Promise<unknown[]>;
     };
   };
 
@@ -217,16 +228,27 @@ const { state, playersTable, auctionsTable, tradesTable, mockDb } = vi.hoisted((
           return {
             where: (cond: unknown) => {
               const lookupId = columnValue(cond, 'auctionId');
+              const run = async () => {
+                if (lookupId !== undefined) {
+                  // FID-20261002-005: settlement re-locks by id, so lookups
+                  // must cover BOTH pools.
+                  const row =
+                    state.auctions.find((r) => r.auctionId === lookupId) ??
+                    state.overdue.find((r) => r.auctionId === lookupId);
+                  if (!row) return [];
+                  // Scripted race-loss (claimWins=false): a concurrent writer
+                  // closed the row before our lock — it reads back NOT active.
+                  const closed = !state.claimWins ? 'sold' : row.status;
+                  // Detached snapshot — the claim's canonical-row mutation
+                  // must not leak back into an already-fetched object.
+                  return [{ ...row, status: closed }];
+                }
+                return state.overdue.map((r) => ({ ...r }));
+              };
+              const limited = Object.assign(run(), { for: () => run() });
               return {
-                limit: async () => {
-                  if (lookupId !== undefined) {
-                    const row = state.auctions.find((r) => r.auctionId === lookupId);
-                    // Detached snapshot — the claim's canonical-row mutation
-                    // must not leak back into an already-fetched object.
-                    return row ? [{ ...row }] : [];
-                  }
-                  return state.overdue.map((r) => ({ ...r }));
-                },
+                limit: () => limited,
+                for: () => run(),
                 orderBy: () => ({
                   limit: () => ({
                     offset: async () => state.overdue,
@@ -250,12 +272,10 @@ const { state, playersTable, auctionsTable, tradesTable, mockDb } = vi.hoisted((
             }
             // auctions: status-flipping patches are claims (scripted via
             // claimWins); the leader-pair patch (no status) rides
-            // leaderClaimWins. Post-claim settled-only patches also ride
-            // leaderClaimWins (true by default — they only run after a won
-            // claim anyway).
+            // leaderClaimWins.
             const wins = patch.status !== undefined ? state.claimWins : state.leaderClaimWins;
             if (!wins) return [];
-            applyAuctionPatch(patch);
+            applyAuctionPatch(patch, columnValue(cond, 'auctionId'));
             return [{ id: 'r1' }];
           }),
       }),
@@ -268,6 +288,40 @@ const { state, playersTable, auctionsTable, tradesTable, mockDb } = vi.hoisted((
       },
     }),
     delete: () => ({ where: async () => [] }),
+  };
+
+  // FID-20261002-005: db.transaction passes a tx handle with the SAME builder
+  // shape, and a throw ANYWHERE inside rolls the whole transaction back — the
+  // mock undoes wallet writes, unit writes, patches, inserts and the event
+  // timeline (a refusal mid-tx leaves zero committed effects).
+  const rollbackSnapshot = () => ({
+    players: new Map(state.players),
+    lens: {
+      walletOps: state.walletOps.length,
+      unitAppends: state.unitAppends.length,
+      unitsSets: state.unitsSets.length,
+      auctionPatches: state.auctionPatches.length,
+      trades: state.trades.length,
+      auctionInserts: state.auctionInserts.length,
+      events: state.events.length,
+    },
+  });
+  (mockDb as unknown as { transaction: unknown }).transaction = async (fn: (tx: unknown) => Promise<unknown>) => {
+    const snap = rollbackSnapshot();
+    try {
+      return await fn(mockDb);
+    } catch (error) {
+      state.players.clear();
+      for (const [k, v] of snap.players) state.players.set(k, structuredClone(v));
+      state.walletOps.length = snap.lens.walletOps;
+      state.unitAppends.length = snap.lens.unitAppends;
+      state.unitsSets.length = snap.lens.unitsSets;
+      state.auctionPatches.length = snap.lens.auctionPatches;
+      state.trades.length = snap.lens.trades;
+      state.auctionInserts.length = snap.lens.auctionInserts;
+      state.events.length = snap.lens.events;
+      throw error;
+    }
   };
 
   // Column-access proxies: any property read yields a tagged column stub so
@@ -452,8 +506,8 @@ describe('cancelAuction refunds', () => {
     expect(claim).toBeDefined();
   });
 
-  it('returns the escrowed unit (snapshot) to the seller on cancel', async () => {
-    const unit = { unitId: 'U1', name: 'Grunt' };
+  it('returns the escrowed unit (snapshot) to the seller on cancel — with a recounted army', async () => {
+    const unit = { id: 'I1', unitId: 'U1', name: 'Grunt', quantity: 1, strength: 10, defense: 5 };
     state.auctions = [
       auctionRow({
         status: AuctionStatus.Active,
@@ -462,7 +516,7 @@ describe('cancelAuction refunds', () => {
         highestBidder: null,
         currentBid: null,
         expiresAt: new Date(Date.now() + 3_600_000),
-        item: { itemType: AuctionItemType.Unit, unitId: 'U1', unitSnapshot: unit },
+        item: { itemType: AuctionItemType.Unit, unitId: 'U1', unitInstanceId: 'I1', unitSnapshot: unit },
       }),
     ];
     seedPlayer('seller1');
@@ -470,7 +524,8 @@ describe('cancelAuction refunds', () => {
     const result = await cancelAuction('seller1', 'AUC-TEST-1');
 
     expect(result.success).toBe(true);
-    const giveBack = state.unitAppends.find((op) => op.username === 'seller1' && deepIncludes(op.units, unit));
+    // FID-20261002-005: the refund restores the stack AND recounts totals.
+    const giveBack = state.unitsSets.find((op) => op.username === 'seller1' && deepIncludes(op.units, unit));
     expect(giveBack).toBeDefined();
   });
 
@@ -512,23 +567,22 @@ describe('placeBid escrow', () => {
     expect(wallet('winner1', 500)).toHaveLength(1);
   });
 
-  it('a bid racing a closed row refunds its own escrow and touches no other wallet', async () => {
+  it('a bid racing a closed row commits NOTHING (transaction rollback, zero financial writes)', async () => {
     seedPlayer('bidder2', 5000);
     state.auctions = [
       auctionRow({ currentBid: 500, highestBidder: 'winner1', expiresAt: new Date(Date.now() + 3_600_000) }),
     ];
-    // Claim lost: a concurrent buyout/settlement flipped status between the
-    // bidder's validation and their leader write (FID-20260914-003).
+    // The leader-claim patch loses (FID-20261002-005: everything is one
+    // transaction — the refusal rolls the debit and the release back).
     state.leaderClaimWins = false;
 
     const result = await placeBid('bidder2', { auctionId: 'AUC-TEST-1', bidAmount: 700 });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('AUCTION_NOT_ACTIVE');
-    // The fresh escrow is refunded exactly; the previous leader's escrow was
-    // never touched (their release only runs after a won claim).
-    expect(wallet('bidder2', 700)).toHaveLength(1);
-    expect(wallet('winner1', 500)).toHaveLength(0);
+    // Full rollback: no bidder debit, no leader release, no patches.
+    expect(state.walletOps).toHaveLength(0);
+    expect(state.auctionPatches).toHaveLength(0);
   });
 
   it('rejects bids below current + increment without touching any wallet', async () => {
@@ -635,46 +689,69 @@ describe('buyoutAuction claim-first close (FID-20260914-003)', () => {
     expect(state.walletOps).toHaveLength(0);
   });
 
-  it('rolls the claim back when delivery fails — no money moves', async () => {
-    // Unit listing WITHOUT a snapshot (legacy row) whose unit is gone from the
-    // seller's army → transfer fails after the claim flipped status.
+  it('refuses AMBIGUOUS legacy unit listings at admission (no snapshot, no instance id)', async () => {
+    // FID-20261002-005 item 6: a unit listing with NEITHER snapshot NOR
+    // instance id cannot be honestly delivered — refused BEFORE any claim,
+    // money or goods move (never guessed from a nonunique blueprint).
     state.auctions = [
       buyoutRow({
         item: { itemType: AuctionItemType.Unit, unitId: 'GONE' },
       }),
     ];
     seedPlayer('buyer1', 999999);
-    seedPlayer('seller1'); // units: [] → GONE not found
+    seedPlayer('seller1');
 
     const { buyoutAuction } = await import('@/lib/auctionService');
     const result = await buyoutAuction('buyer1', 'AUC-TEST-1');
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('UNIT_NOT_FOUND');
-    // Rollback: the row returns to Active so settlement/other buyers proceed.
-    const rollback = state.auctionPatches.find((p) => p.status === 'active');
-    expect(rollback).toBeDefined();
-    // No wallet writes: leader escrow untouched, buyer not charged, seller not paid.
+    expect(result.error).toBe('AMBIGUOUS_LEGACY_LISTING');
+    expect(state.auctionPatches).toHaveLength(0);
     expect(state.walletOps).toHaveLength(0);
+  });
+
+  it('rolls the whole transaction back when delivery fails after the claim — no money moves', async () => {
+    // Tradeable listing with an integrity-faulted (empty) escrow snapshot:
+    // the claim flips status, transfer fails INSIDE the tx → everything
+    // (close, delivery, money, trade) rolls back together.
+    state.auctions = [
+      buyoutRow({
+        item: { itemType: AuctionItemType.TradeableItem, tradeableSnapshot: [] },
+      }),
+    ];
+    seedPlayer('buyer1', 999999);
+    seedPlayer('seller1');
+    seedPlayer('winner1');
+
+    const { buyoutAuction } = await import('@/lib/auctionService');
+    const result = await buyoutAuction('buyer1', 'AUC-TEST-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('TRADEABLE_SNAPSHOT_MISSING');
+    // Rollback: no sold patch survives, no wallet writes, no trade record.
+    expect(state.auctionPatches.find((p) => p.status === 'sold')).toBeUndefined();
+    expect(state.walletOps).toHaveLength(0);
+    expect(state.trades).toHaveLength(0);
   });
 });
 
 describe('unit escrow at listing (FID-20260914-003)', () => {
-  it('snapshots the unit, removes it from the army, and charges the fee', async () => {
-    const unit = { unitId: 'U1', name: 'Grunt', quantity: 1 };
-    seedPlayer('seller1', 5000, 0, [unit, { unitId: 'U2', name: 'Scout', quantity: 1 }]);
+  it('snapshots the unit, removes the EXACT instance from the army, and charges the fee', async () => {
+    const unit = { id: 'I1', unitId: 'U1', name: 'Grunt', quantity: 1 };
+    seedPlayer('seller1', 5000, 0, [unit, { id: 'I2', unitId: 'U2', name: 'Scout', quantity: 1 }]);
 
     const { createAuctionListing } = await import('@/lib/auctionService');
     const result = await createAuctionListing('seller1', {
-      item: { itemType: AuctionItemType.Unit, unitId: 'U1' },
+      item: { itemType: AuctionItemType.Unit, unitInstanceId: 'I1', unitId: 'U1' },
       startingBid: 1000,
       duration: 12,
     });
 
     expect(result.success).toBe(true);
-    const inserted = state.auctionInserts[0] as { item: { unitSnapshot?: unknown } };
+    const inserted = state.auctionInserts[0] as { item: { unitSnapshot?: unknown; unitInstanceId?: string } };
     expect(inserted.item.unitSnapshot).toEqual(unit);
-    // Escrow: the seller's units array is rewritten WITHOUT the listed unit.
+    expect(inserted.item.unitInstanceId).toBe('I1');
+    // Escrow: the seller's units array is rewritten WITHOUT the listed instance.
     expect(state.unitsSets).toHaveLength(1);
     expect(state.unitsSets[0].username).toBe('seller1');
     expect(state.unitsSets[0].units).toHaveLength(1);
@@ -707,13 +784,13 @@ describe('unit escrow at listing (FID-20260914-003)', () => {
   });
 
   it('settlement of an expired unit listing returns the escrowed unit to the seller', async () => {
-    const unit = { unitId: 'U1', name: 'Grunt', quantity: 1 };
+    const unit = { id: 'I1', unitId: 'U1', name: 'Grunt', quantity: 1, strength: 10, defense: 5 };
     state.overdue = [
       auctionRow({
         bids: [],
         highestBidder: null,
         currentBid: null,
-        item: { itemType: AuctionItemType.Unit, unitId: 'U1', unitSnapshot: unit },
+        item: { itemType: AuctionItemType.Unit, unitId: 'U1', unitInstanceId: 'I1', unitSnapshot: unit },
       }),
     ];
     seedPlayer('seller1');
@@ -721,12 +798,12 @@ describe('unit escrow at listing (FID-20260914-003)', () => {
     const result = await settleExpiredAuctions();
 
     expect(result.expired).toBe(1);
-    const giveBack = state.unitAppends.find((op) => op.username === 'seller1' && deepIncludes(op.units, unit));
+    const giveBack = state.unitsSets.find((op) => op.username === 'seller1' && deepIncludes(op.units, unit));
     expect(giveBack).toBeDefined();
   });
 
-  it('unit delivery on sale pushes the SNAPSHOT to the buyer (seller-side not required)', async () => {
-    const unit = { unitId: 'U1', name: 'Grunt', quantity: 1 };
+  it('unit delivery on sale writes the SNAPSHOT to the buyer army (seller-side not required)', async () => {
+    const unit = { id: 'I1', unitId: 'U1', name: 'Grunt', quantity: 2, strength: 10, defense: 5 };
     state.auctions = [
       auctionRow({
         buyoutPrice: 2000,
@@ -734,7 +811,7 @@ describe('unit escrow at listing (FID-20260914-003)', () => {
         highestBidder: 'winner1',
         bids: [{ bidId: 'BID-1', bidderUsername: 'winner1', bidAmount: 300, isWinning: true }],
         expiresAt: new Date(Date.now() + 3_600_000),
-        item: { itemType: AuctionItemType.Unit, unitId: 'U1', unitSnapshot: unit },
+        item: { itemType: AuctionItemType.Unit, unitId: 'U1', unitInstanceId: 'I1', unitSnapshot: unit },
       }),
     ];
     seedPlayer('buyer1', 999999);
@@ -744,9 +821,10 @@ describe('unit escrow at listing (FID-20260914-003)', () => {
     const result = await buyoutAuction('buyer1', 'AUC-TEST-1');
 
     expect(result.success).toBe(true);
-    // The delivery push targets the BUYER, and no seller-side unit write occurs.
-    const delivery = state.unitAppends.find((op) => op.username === 'buyer1' && deepIncludes(op.units, unit));
+    // The delivered WHOLE stack lands on the buyer, and NO seller-side unit
+    // write occurs (the goods left the seller at listing time).
+    const delivery = state.unitsSets.find((op) => op.username === 'buyer1' && deepIncludes(op.units, unit));
     expect(delivery).toBeDefined();
-    expect(state.unitsSets).toHaveLength(0);
+    expect(state.unitsSets.filter((op) => op.username === 'seller1')).toHaveLength(0);
   });
 });

@@ -75,9 +75,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       );
     }
 
-    // Get player's auctions (filter by seller username)
+    // Get player's auctions (filter by seller username). FID-20261002-005:
+    // the seller is also the viewer — their own clan-only listings stay
+    // visible to them even after a clan change.
     const result = await getAuctions({
       sellerUsername: username,
+      viewerUsername: username,
       sortBy: 'newly_listed',
       page,
       limit
