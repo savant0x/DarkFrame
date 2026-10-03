@@ -22,7 +22,7 @@
 
 import { db } from './db/connection';
 import { players } from './db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import type { Player } from '@/types/game.types';
 import { logger } from './logger';
 
@@ -374,36 +374,10 @@ export async function getDiscoveryProgress(playerId: string) {
  * @param playerId - Player username
  * @returns Aggregate bonus values
  */
-export async function getDiscoveryBonuses(playerId: string) {
-  // FID-20260911-046: discoveries-only projection (see checkDiscoveryDrop).
-  const [playerRow] = await db
-    .select({ discoveries: players.discoveries })
-    .from(players)
-    .where(eq(players.username, playerId))
-    .limit(1);
-  const player = playerRow ? { discoveries: (playerRow.discoveries ?? []) as Player['discoveries'] } : null;
-
-  if (!player || !player.discoveries) {
-    return {
-      metalYield: 0,
-      energyYield: 0,
-      unitCostReduction: 0,
-      factorySlots: 0,
-      slotRegenSpeed: 0,
-      unitDefense: 0,
-      unitStrength: 0,
-      damageDealt: 0,
-      damageTakenReduction: 0,
-      unitHp: 0,
-      bankCapacity: 0,
-      shrineBoostDuration: 0,
-      fastTravel: false,
-      xpMultiplier: 0,
-      caveLootQuality: 0
-    };
-  }
-
-  const bonuses = {
+/** The all-zero neutral discovery-bonus shape (FID-20261002-012: shared by
+ *  the single-player and batch readers so they can never diverge). */
+function neutralDiscoveryBonuses() {
+  return {
     metalYield: 0,
     energyYield: 0,
     unitCostReduction: 0,
@@ -420,14 +394,19 @@ export async function getDiscoveryBonuses(playerId: string) {
     xpMultiplier: 0,
     caveLootQuality: 0
   };
+}
+
+/** Pure accumulator over a discovery list (shared by both readers). */
+function accumulateDiscoveryBonuses(discoveries: Player['discoveries']) {
+  const bonuses = neutralDiscoveryBonuses();
 
   // Accumulate bonuses from all discoveries
-  for (const discovery of player.discoveries) {
+  for (const discovery of discoveries ?? []) {
     const config = ANCIENT_TECHNOLOGIES[discovery.id];
     if (!config) continue;
 
     const effect = config.bonusEffect;
-    
+
     switch (effect.type) {
       case 'metal_yield':
         bonuses.metalYield += effect.value;
@@ -476,6 +455,44 @@ export async function getDiscoveryBonuses(playerId: string) {
         break;
     }
   }
-
   return bonuses;
+}
+
+export async function getDiscoveryBonuses(playerId: string) {
+  // FID-20260911-046: discoveries-only projection (see checkDiscoveryDrop).
+  const [playerRow] = await db
+    .select({ discoveries: players.discoveries })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
+
+  if (!playerRow) {
+    return neutralDiscoveryBonuses();
+  }
+
+  return accumulateDiscoveryBonuses((playerRow.discoveries ?? []) as Player['discoveries']);
+}
+
+/**
+ * FID-20261002-012 §5.7: batch discovery bonuses for the combat seam —
+ * resolveBattle resolves BOTH sides with ONE query instead of two per-player
+ * reads. Missing players resolve the all-zero neutral shape.
+ */
+export async function getDiscoveryBonusesForUsernames(
+  usernames: string[]
+): Promise<Record<string, Awaited<ReturnType<typeof getDiscoveryBonuses>>>> {
+  const out: Record<string, Awaited<ReturnType<typeof getDiscoveryBonuses>>> = {};
+  if (usernames.length === 0) return out;
+
+  const rows = await db
+    .select({ username: players.username, discoveries: players.discoveries })
+    .from(players)
+    .where(inArray(players.username, usernames));
+
+  for (const username of usernames) {
+    const row = rows.find((r) => r.username === username);
+    if (!row) continue;
+    out[username] = accumulateDiscoveryBonuses((row.discoveries ?? []) as Player['discoveries']);
+  }
+  return out;
 }

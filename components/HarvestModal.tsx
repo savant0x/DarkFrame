@@ -35,6 +35,11 @@ interface HarvestResult {
     name: string;
     rarity: string;
   };
+  /** FID-20261002-012 §5.3: the server's authoritative next resource-harvest
+   *  action deadline (ms epoch) — the client paces from THIS, never a local
+   *  guess (advanced-mining owners get 2400ms, not a hardcoded 3000ms). */
+  nextResourceHarvestAt?: string;
+  retryAt?: number;
 }
 
 // ============================================================
@@ -86,6 +91,15 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
   const [isHarvesting, setIsHarvesting] = useState(false);
   const [result, setResult] = useState<HarvestResult | null>(null);
   const [preHarvestMessage, setPreHarvestMessage] = useState<string>('');
+  // FID-20261002-012 §5.3: the modal re-opens between harvests; a deadline
+  // carried by a result (or a refusal retryAt) disables the button until the
+  // server's time arrives. Evaluated on render — no timer drift authority.
+  const rateLimited = (() => {
+    const deadline = result?.nextResourceHarvestAt
+      ? new Date(result.nextResourceHarvestAt).getTime()
+      : result?.retryAt;
+    return typeof deadline === 'number' && Date.now() < deadline;
+  })();
 
   // ============================================================
   // EFFECTS
@@ -126,6 +140,10 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
         metalGained: data.metalGained,
         energyGained: data.energyGained,
         item: data.item,
+        // FID-20261002-012 §5.3: server-authoritative action deadline (or the
+        // retryAt of a deadline refusal) — the client never guesses cadence.
+        nextResourceHarvestAt: data.nextResourceHarvestAt,
+        retryAt: data.retryAt,
       });
 
       // Refresh game state after successful harvest
@@ -255,10 +273,10 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
               </p>
               <button
                 onClick={handleHarvest}
-                disabled={isHarvesting}
+                disabled={isHarvesting || rateLimited}
                 className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-3 px-8 rounded-none transition-all hover:scale-105 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,197,94,0.3)]"
               >
-                {isHarvesting ? 'HARVESTING...' : `${getActionVerb()} (${getKeyHint()})`}
+                {isHarvesting ? 'HARVESTING...' : rateLimited ? 'TOO SOON — WAIT A MOMENT' : `${getActionVerb()} (${getKeyHint()})`}
               </button>
             </div>
           ) : (

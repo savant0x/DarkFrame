@@ -250,6 +250,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       energyGained: 'energyGained' in result ? result.energyGained : undefined,
       item: 'item' in result ? result.item : undefined,
       bonusApplied: 'bonusApplied' in result ? result.bonusApplied : undefined,
+      // FID-20261002-012 §5.3: the authoritative resource-harvest action
+      // deadline this payout wrote (undefined for item tiles/refusals) —
+      // manual and auto clients pace from the SERVER, never a local guess.
+      nextResourceHarvestAt: 'nextResourceHarvestAt' in result && result.nextResourceHarvestAt
+        ? result.nextResourceHarvestAt.toISOString()
+        : undefined,
+      retryAt: 'retryAt' in result && typeof result.retryAt === 'number' ? result.retryAt : undefined,
       xpAwarded: xpResult?.xpAwarded,
       levelUp: xpResult?.levelUp,
       newLevel: xpResult?.newLevel,

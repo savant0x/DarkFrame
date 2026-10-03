@@ -6,13 +6,29 @@
  * `TECHNOLOGIES` map of effectless techs, and the TechTree UI's 12-entry mock
  * that advertised six functional bot techs the route refused to sell).
  *
- * Every entry here has a real server-side effect consumer (verified by grep):
- *   - advanced-mining, fortification → balanceService combat/economy bonuses
+ * Every entry here has a real server-side effect consumer (verified by grep;
+ * FID-20261002-012 wired the three core techs that previously had none):
+ *   - advanced-mining → techEffects yield (+10%) + harvest action cadence
+ *     (2400ms) consumed by harvestService, /api/harvest, antiCheatDetector
+ *     and the auto-farm client
+ *   - fortification → techEffects base-defense coefficients consumed by
+ *     battleService's resolveBattle (+15% DEF defending a base raid,
+ *     −15% incoming raid damage)
+ *   - tactical-warfare → techEffects attack coefficients consumed by
+ *     battleService's resolveBattle (+20% attacking STR, +5pp critical
+ *     chance at 1.5× damage, drawn once per actual strike)
  *   - bot-hunter / advanced-tracking → botScannerService + botCombatService
  *   - bot-magnet                     → /api/bot-magnet gating
  *   - bot-concentration-zones        → concentrationZoneService gating
  *   - bot-summoning-circle           → botSummoningService gating
  *   - fast-travel-network            → fastTravelService gating
+ *
+ * EFFECT PROVENANCE (FID-20261002-012): advanced-mining's +10% yield and
+ * ÷1.25 speed, fortification's +15% DEF and −15% raid-damage reduction, and
+ * tactical-warfare's +20% attack STR / +5pp crit / 1.5× crit damage were
+ * UNSPECIFIED catalog promises before that FID — the implemented values above
+ * are the proposed defaults it shipped. Operator-ratifiable balance policy:
+ * changes go through lib/research/techEffects.ts and a recorded decision.
  *
  * Pricing (T2) targets the measured economy from FID-20260912-057: the full
  * functional line costs 127,500 RP — ~9-10 best-case days for a dedicated
@@ -42,7 +58,7 @@ export const TECH_CATALOG: TechCatalogEntry[] = [
     prerequisites: [],
     category: 'economy',
     description: 'Improved resource extraction techniques',
-    effects: ['+25% resource harvesting speed', '+10% resource yield'],
+    effects: ['+10% resource yield', '+25% harvest action speed (3000ms → 2400ms)'],
     researchTime: 180,
   },
   {
@@ -52,7 +68,7 @@ export const TECH_CATALOG: TechCatalogEntry[] = [
     prerequisites: [],
     category: 'combat',
     description: 'Hardened base defenses against raids',
-    effects: ['+15% defensive power', 'Reduced damage from raids'],
+    effects: ['+15% DEF while defending your base in raids', '−15% raid damage taken while defending'],
     researchTime: 240,
   },
   {
@@ -133,7 +149,7 @@ export const TECH_CATALOG: TechCatalogEntry[] = [
     prerequisites: ['fortification'],
     category: 'combat',
     description: 'Advanced combat doctrine for offensive operations',
-    effects: ['+20% attack power', 'Critical hit chance increased'],
+    effects: ['+20% attacking STR', '+5pp critical chance (1.5× critical damage)'],
     researchTime: 420,
   },
   {

@@ -41,6 +41,13 @@ export const players = pgTable('players', {
 	unlockedTechs: jsonb('unlocked_techs').$type<string[]>(),
 	concentrationZones: jsonb('concentration_zones').$type<Array<{ centerX: number; centerY: number; size: number; name?: string }>>(),
 	lastBotSummon: timestamp('last_bot_summon', { withTimezone: true }),
+	// FID-20261002-012 §5 (boundary audit): the authoritative resource-harvest
+	// action deadline (advanced-mining cadence). Written ONLY with a successful
+	// resource payout in the 002/011 harvest transaction; NULL = no deadline.
+	// Consumers: lib/harvestService.ts (admission + write),
+	// app/api/harvest/route.ts (timing DTO), lib/antiCheatDetector.ts (the SAME
+	// threshold), utils/autoFarmEngine.ts (client cadence). Migration 0042.
+	nextResourceHarvestAt: timestamp('next_resource_harvest_at', { withTimezone: true }),
 	fastTravelWaypoints: jsonb('fast_travel_waypoints').$type<Array<{ name: string; x: number; y: number; setAt: Date }>>(),
 	lastFastTravel: timestamp('last_fast_travel', { withTimezone: true }),
 	dailyBounties: jsonb('daily_bounties').$type<PlayerBounties | null>(),

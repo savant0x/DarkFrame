@@ -24,6 +24,7 @@
 
 import { GAME_CONSTANTS, TerrainType, isFarmableTerrain } from '@/types/game.types';
 import type { Tile, SanitizedPlayer } from '@/types/game.types';
+import { getResourceHarvestDelayMs } from '@/lib/research/techEffects'; // FID-20261002-012 §5.3
 import {
   AutoFarmConfig,
   AutoFarmState,
@@ -177,9 +178,18 @@ export class AutoFarmEngine {
       // BASIC TIER: Guaranteed cooldown respect (~11.6 hours to complete map)
       // Movement: 200ms | Harvest: 800ms | Delay: 500ms (non-harvest) / 2000ms (harvest)
       // Non-harvestable: 700ms | Harvestable: 3000ms
+      // FID-20261002-012 §5.3: advanced-mining owners pace at the researched
+      // 2400ms cadence (3000/1.25) — the flag comes from /api/research via
+      // the page config; default false stays conservative (respects 2400ms).
       this.MOVEMENT_DELAY = 500;
-      this.HARVEST_DELAY_EXTRA = 2000; // 2s extra after harvest (3s total = cooldown respected)
-      console.log('[AutoFarm] Basic mode - Guaranteed cooldown (11.6 hour completion)');
+      this.HARVEST_DELAY_EXTRA = config.hasAdvancedMining
+        ? getResourceHarvestDelayMs(true) - 500 // 2400ms cadence − movement budget
+        : 2000; // 2s extra after harvest (3s total = cooldown respected)
+      console.log(
+        config.hasAdvancedMining
+          ? '[AutoFarm] Basic mode + Advanced Mining (2400ms cadence)'
+          : '[AutoFarm] Basic mode - Guaranteed cooldown (11.6 hour completion)'
+      );
     }
     
     this.state = {

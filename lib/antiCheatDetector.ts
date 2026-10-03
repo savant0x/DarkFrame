@@ -34,6 +34,7 @@ import { and, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { playerActivity, playerFlags, players } from '@/lib/db/schema';
 import { generateId } from '@/lib/utils';
+import { getResourceHarvestDelayMs } from '@/lib/research/techEffects'; // FID-20261002-012 §5.3
 
 /**
  * Detector action vocabulary → the writer's `player_activity.action` values.
@@ -502,7 +503,25 @@ export async function detectCooldownViolation(
       factory: THRESHOLDS.MIN_ACTION_DELAY
     };
 
-    const requiredCooldown = cooldownRequirements[actionType] || THRESHOLDS.MIN_ACTION_DELAY;
+    // FID-20261002-012 §5.3: the detection threshold IS the researched
+    // resource-harvest cadence — an advanced-mining owner legitimately acts
+    // every 2400ms, so flagging at the flat 3000ms punished a paid feature.
+    // Fail-soft to the base cadence when the tech read is unavailable.
+    let requiredCooldown = cooldownRequirements[actionType] || THRESHOLDS.MIN_ACTION_DELAY;
+    if (actionType === 'harvest') {
+      try {
+        const [techRow] = await db
+          .select({ unlockedTechs: players.unlockedTechs })
+          .from(players)
+          .where(eq(players.username, username))
+          .limit(1);
+        requiredCooldown = getResourceHarvestDelayMs(
+          (techRow?.unlockedTechs ?? []).includes('advanced-mining')
+        );
+      } catch (techError) {
+        console.error('Harvest cadence tech read failed (base cadence applied):', techError);
+      }
+    }
 
     // Check for violation
     if (timeSinceLastAction < requiredCooldown) {

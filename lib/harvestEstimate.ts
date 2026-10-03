@@ -25,6 +25,7 @@
 
 import { GAME_CONSTANTS } from '@/types';
 import { calculateBalanceEffects, type BalanceEffects } from './balanceService';
+import { TECH_EFFECTS } from './research/techEffects'; // FID-20261002-012 §5.3
 
 /** One estimate result per resource type. */
 export interface HarvestEstimate {
@@ -48,6 +49,8 @@ export interface HarvestEstimate {
     balanceMultiplier: number;
     /** Balance status label driving the multiplier. */
     balanceStatus: BalanceEffects['status'];
+    /** true when the advanced-mining +10% yield stage applied (FID-20261002-012). */
+    advancedMining: boolean;
   };
 }
 
@@ -69,6 +72,9 @@ export interface HarvestEstimateInput {
   totalDefense?: number;
   /** Overrides the random base roll (tests / deterministic UI). */
   base?: number;
+  /** FID-20261002-012 §5.3: the caller owns the advanced-mining tech
+   *  (players.unlockedTechs). Estimates and payouts use the SAME flag. */
+  advancedMining?: boolean;
 }
 
 function activeShrinePct(
@@ -120,6 +126,15 @@ export function estimateHarvest(input: HarvestEstimateInput, now = new Date()): 
     amount = Math.floor(amount * balanceMultiplier);
   }
 
+  // FID-20261002-012 §5.3: advanced-mining +10% resource yield — its own
+  // multiplicative stage AFTER balance (a technology multiplier, not a
+  // gathering %), floored like every other stage. Does not touch reset
+  // periods or claim eligibility — yield only.
+  const advancedMining = Boolean(input.advancedMining);
+  if (advancedMining) {
+    amount = Math.floor(amount * (1 + TECH_EFFECTS['advanced-mining'].harvestYieldPct / 100));
+  }
+
   return {
     base,
     final: Math.floor(amount),
@@ -131,6 +146,7 @@ export function estimateHarvest(input: HarvestEstimateInput, now = new Date()): 
       flagBearer,
       balanceMultiplier,
       balanceStatus,
+      advancedMining,
     },
   };
 }

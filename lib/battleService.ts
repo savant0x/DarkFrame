@@ -8,26 +8,37 @@
  * Base attacks (home base raids), and enhanced Factory battles. Uses HP-based
  * combat resolution with unit capture mechanics and resource theft.
  * 
- * COMBAT MECHANICS (live rules — FID-20260915-001 Phase 3 + FID-20260915-004):
- * - Per-unit HP is power-proportional: HP = strength + defense per unit.
+ * COMBAT MECHANICS (live rules — FID-20260915-001 Phase 3 + FID-20260915-004
+ * + FID-20261002-013 attrition model):
+ * - Per-unit HP is power-proportional: HP = strength + defense per COPY.
  *   The 10 HP floor applies ONLY to zero-power units (the old flat 10/15
- *   by-category scale is retired).
+ *   by-category scale is retired). Each copy's HP PERSISTS: strike damage is
+ *   absorbed front-to-back through ONE seeded battle-order permutation per
+ *   side (compressed into stack segments — only the damaged frontier splits),
+ *   a copy dies only when its OWN HP reaches zero, and partial damage carries
+ *   into the next strike.
  * - Base damage per round = max(5, AttackerSTR - DefenderDEF/2) for the
  *   attacker, max(5, DefenderDEF - AttackerSTR/2) for the defender - except
  *   PvP infantry, where the defender counter uses /3 (FID-20260915-008:
  *   suppression knee at 1/3 DEF-share so glass cannons bleed against mixed
  *   armies; raids keep /2 and their tuned pacing), with level-gap
  *   protection past a 20-level gap (-5% per level above 20,
- *   minimum 25% of calculated damage).
+ *   minimum 25% of calculated damage). STR/DEF are RECOMPUTED FROM THE
+ *   LIVING COPIES before every strike — firepower declines after casualties.
  * - Every strike is then multiplied by the army-balance dealt/taken
- *   multipliers (computed from raw pre-bonus stats), plus the flag-bearer
- *   +25% and doctrine bonus stacks where present.
+ *   multipliers (FROZEN from the raw pre-bonus snapshot for the whole
+ *   encounter — no band oscillation), with the flag-bearer/doctrine/012-
+ *   effect stat-axis pipeline re-applied to the living stats. Human
+ *   encounters (server-derived context only) also apply the balance
+ *   powerMultiplier to effective STR/DEF once; PvE never receives it.
  * - Resolution is SEQUENTIAL: the attacker strikes first and a side at
- *   0 HP never counter-attacks. Casualties come from HP actually deducted
- *   (overkill clamped), never raw damage. The 100-round cap is a REPELLED
- *   raid (DefenderWin); Draw survives only as the degenerate-input guard.
- * - HP loss translates to unit casualties (randomly distributed, permanent;
- *   a destroyed side's remaining units count as casualties).
+ *   0 HP never counter-attacks. A zero-HP terminal result ON the 100-round
+ *   cap resolves BEFORE the repel — only a live-live standoff is the
+ *   REPELLED raid (DefenderWin); Draw survives only as the degenerate-input
+ *   guard.
+ * - Deaths are recorded in the round that dealt the killing damage (last-hit
+ *   exhaustion included); per-round loss sums equal the participant totals
+ *   and initial copies = survivors + casualties (survivorCount on the log).
  * - Winners capture 10-15% of defeated enemy units in PvP only — PvE base
  *   raids opt out (loot IS the reward, garrisons don't teleport).
  * - PvP base attacks steal 20% of the chosen resource (capped at 25,000)
@@ -56,6 +67,15 @@ import { trackBattleWon } from './statTrackingService';
 import { calculateBalanceEffects, type BalanceEffects } from './balanceService';
 import { voidProtectionOnAggression } from './playerProtection'; // FID-20260916-002
 import { DEFENDER_LOSS_FLOOR } from './hostileBase'; // FID-20260928-006
+// FID-20261002-012 §5.1/§5.2: the ONE combat effect composition seam — clan
+// research, combat discoveries and personal technologies join the encounter
+// through the same typed snapshot the display consumes (no parallel formula).
+import { composeCombatEffects, getPersonalTechCombatEffects } from './research/techEffects';
+// FID-20261002-004 §5.5: the quantity-weighted army totals reducer is ONE
+// shared function (lib/armyService) consumed by battle, procurement and the
+// FID-005/006 seams — the private copy that lived here is deleted.
+import { calculatePlayerUnitStats } from './armyService';
+import type { TreasuryTx } from './db/treasuryLock'; // FID-20261002-003 §5.5: tx-aware casualties
 
 /**
  * Convert PlayerUnit (inventory) to Unit (combat)
@@ -170,32 +190,164 @@ const RESOURCE_THEFT_RATE = 0.20; // 20% of defender's resources (capped)
 const RESOURCE_THEFT_CAP = 25000; // max resources stolen in a single raid
 
 /**
- * Calculate total HP for a set of units
- * FID-20260915-001 Phase 3: HP = strength + defense per unit (power-
- * proportional). A zero-power unit (strength 0 AND defense 0) keeps the
- * legacy 10 HP floor so degenerate fixtures can't create unkillable or
- * instant-dead armies.
+ * FID-20261002-013: input sanitation for combat stats. Corrupt rows (NaN,
+ * Infinity, negatives) must degrade to a neutral finite value — never poison
+ * the resolver into NaN pools or negative-HP copies — and absurd magnitudes
+ * clamp to a bounded ceiling so no single stat can blow the round budget.
  */
-function calculateTotalHP(units: Unit[]): number {
-  return units.reduce((total, unit) => {
-    const hpValue = unit.strength + unit.defense > 0
-      ? unit.strength + unit.defense
-      : HP_PER_STR_UNIT;
-    return total + hpValue;
-  }, 0);
+const SAFE_UNIT_STAT_CEILING = 1e9;
+
+function sanitizeStat(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n > SAFE_UNIT_STAT_CEILING ? SAFE_UNIT_STAT_CEILING : n;
 }
 
 /**
- * Calculate total STR and DEF from units
+ * Calculate total STR and DEF from units (sanitized — FID-20261002-013).
+ * The RAW totals anchor the encounter: they feed the frozen balance snapshot
+ * and the initial log rows; the per-strike combat stats are recomputed from
+ * the stack's LIVING copies.
  */
 function calculateCombatStats(units: Unit[]): { totalSTR: number; totalDEF: number } {
   return units.reduce(
     (stats, unit) => ({
-      totalSTR: stats.totalSTR + unit.strength,
-      totalDEF: stats.totalDEF + unit.defense
+      totalSTR: stats.totalSTR + sanitizeStat(unit.strength),
+      totalDEF: stats.totalDEF + sanitizeStat(unit.defense)
     }),
     { totalSTR: 0, totalDEF: 0 }
   );
+}
+
+/**
+ * FID-20261002-013: one compressed run of the ordered battle stack. All
+ * `count` copies share type/stats; `frontHP` is the current HP of the
+ * frontier (first) copy — the ONLY copy that can be partially damaged — and
+ * the remaining copies of the run are at full HP. Damage is absorbed
+ * strictly front-to-back, so a copy dies only when its OWN HP reaches zero
+ * and survivor HP persists into the next strike. Equivalent stack
+ * partitions (split/merged inventory entries) expand to the same canonical
+ * copies, so partitioning cannot change a battle.
+ */
+interface ArmySegment {
+  type: UnitType;
+  strength: number;
+  defense: number;
+  count: number;   // copies in this run, INCLUDING the frontier copy
+  frontHP: number; // current HP of the frontier copy (0 < frontHP <= fullHP)
+  fullHP: number;  // per-copy max HP (strength + defense, zero-power floor 10)
+  proto: Unit;     // prototype the per-copy casualty records are cloned from
+}
+
+/**
+ * FID-20261002-013: build the ordered battle stack for one side. ONE seeded
+ * battle-order permutation (Fisher-Yates over the copy list — seeded by
+ * Math.random, so tests pin the order with a mocked generator) followed by
+ * compression of adjacent stat-identical copies into runs. Memory follows
+ * stack segments, never one object per deployed unit; complexity follows
+ * segments and the <=100-round budget.
+ */
+function buildArmyStack(units: Unit[]): ArmySegment[] {
+  const order = [...units];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = order[i];
+    order[i] = order[j];
+    order[j] = tmp;
+  }
+  const segments: ArmySegment[] = [];
+  for (const unit of order) {
+    const strength = sanitizeStat(unit.strength);
+    const defense = sanitizeStat(unit.defense);
+    const fullHP = strength + defense > 0 ? strength + defense : HP_PER_STR_UNIT;
+    const last = segments[segments.length - 1];
+    if (last && last.type === unit.type && last.strength === strength && last.defense === defense) {
+      last.count += 1;
+    } else {
+      segments.push({ type: unit.type, strength, defense, count: 1, frontHP: fullHP, fullHP, proto: unit });
+    }
+  }
+  return segments;
+}
+
+/** Current pool HP of a stack: the frontier copy's partial HP plus all full copies. */
+function stackHP(segments: ArmySegment[]): number {
+  let hp = 0;
+  for (const seg of segments) hp += seg.frontHP + (seg.count - 1) * seg.fullHP;
+  return hp;
+}
+
+/**
+ * Living firepower (FID-20261002-013): every surviving copy fights at FULL
+ * strength/defense — wounds reduce HP, not stats — so a side's totals
+ * decline exactly when its copies die (the R6 repair: after first-round
+ * losses the second strike is weaker).
+ */
+function stackCombatStats(segments: ArmySegment[]): { totalSTR: number; totalDEF: number } {
+  let totalSTR = 0;
+  let totalDEF = 0;
+  for (const seg of segments) {
+    totalSTR += seg.strength * seg.count;
+    totalDEF += seg.defense * seg.count;
+  }
+  return { totalSTR, totalDEF };
+}
+
+/**
+ * FID-20261002-013: absorb strike damage through the stack order. A copy
+ * leaves the stack only when its own HP hits zero — recorded as a casualty
+ * of the round that dealt the damage, last-hit exhaustion included — and
+ * partial damage carries on the frontier copy. Overkill is discarded
+ * (absorption stops at the empty stack, matching the historical clamp
+ * semantics); the pool is re-derived from the surviving copies via stackHP,
+ * so a wipe is EXACTLY zero and HP can never go negative. Returns the death
+ * count for the round record.
+ */
+function absorbDamage(
+  segments: ArmySegment[],
+  damage: number,
+  casualties: Unit[]
+): number {
+  const deathsBefore = casualties.length;
+  let remaining = damage;
+  while (remaining > 0 && segments.length > 0) {
+    const seg = segments[0];
+    if (remaining >= seg.frontHP) {
+      // The frontier copy dies of cumulative exhaustion; the next copy of
+      // the run (or the next run) becomes the frontier.
+      remaining -= seg.frontHP;
+      seg.count -= 1;
+      casualties.push({ ...seg.proto });
+      if (seg.count === 0) {
+        segments.shift();
+      } else {
+        seg.frontHP = seg.fullHP;
+      }
+    } else {
+      seg.frontHP -= remaining;
+      remaining = 0;
+    }
+  }
+  return casualties.length - deathsBefore;
+}
+
+/**
+ * FID-20261002-013: the frozen stat-axis bonus pipeline (flag bearer →
+ * doctrine → 012 effect snapshot → human-combat power), applied to the
+ * LIVING raw stats before every strike. Steps are recorded once per
+ * encounter in application order and each floors its result — the exact
+ * pre-013 single-application arithmetic, re-run per strike on the living
+ * totals. A step's absence (no bearer / no doctrine / failed read / non-
+ * human context) leaves the axis untouched.
+ */
+type StatStep = number;
+
+function applyStatSteps(raw: number, steps: StatStep[]): number {
+  let value = raw;
+  for (const mul of steps) {
+    value = Math.floor(value * mul);
+  }
+  return value;
 }
 
 /**
@@ -241,22 +393,6 @@ function calculateDamage(
 }
 
 /**
- * Convert HP loss to unit casualties
- * Distributes damage across units proportionally
- */
-function calculateUnitLosses(hpLost: number, units: Unit[]): { casualties: Unit[]; survivors: Unit[] } {
-  const avgHPPerUnit = units.length > 0 ? calculateTotalHP(units) / units.length : 0;
-  const unitsToKill = Math.min(Math.floor(hpLost / avgHPPerUnit), units.length);
-
-  // Randomly select units to kill (simulate battle chaos)
-  const shuffled = [...units].sort(() => Math.random() - 0.5);
-  const casualties = shuffled.slice(0, unitsToKill);
-  const survivors = shuffled.slice(unitsToKill);
-
-  return { casualties, survivors };
-}
-
-/**
  * Select units to capture from defeated army
  * Captures 10-15% of defeated units randomly
  */
@@ -267,6 +403,21 @@ function selectCapturedUnits(defeatedUnits: Unit[]): Unit[] {
   // Randomly select units to capture
   const shuffled = [...defeatedUnits].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, captureCount);
+}
+
+/**
+ * FID-20261002-013 §5.5: trusted, SERVER-derived human-combat context. When a
+ * side is a human player, the encounter's frozen balance powerMultiplier joins
+ * that side's effective STR/DEF axes once (the advertised ×0.5–×1.1 power band
+ * finally executes in human encounters). NEVER accept this from client JSON:
+ * the live seams derive it from the authenticated session + defender identity
+ * check (app/api/combat/attack human branch) or from the players rows
+ * themselves (executeInfantryAttack). An absent context — PvE/bot raids, and
+ * tests that don't opt in — resolves exactly as before.
+ */
+export interface HumanCombatContext {
+  attackerIsHuman: boolean;
+  defenderIsHuman: boolean;
 }
 
 /**
@@ -287,6 +438,13 @@ export interface ResolveBattleOptions {
    */
   attackerBalance?: BalanceEffects;
   defenderBalance?: BalanceEffects;
+  /**
+   * FID-20261002-013 §5.5: server-derived human-combat context (see
+   * HumanCombatContext). Omitted for PvE/bot raids — the human-role power
+   * multiplier never touches PvE pacing, and bot reinforcement/loot/cadence
+   * policies stay intact.
+   */
+  humanCombat?: HumanCombatContext;
 }
 
 /**
@@ -327,7 +485,10 @@ export async function resolveBattle(
   const attackerLevel = options.attackerLevel ?? 1;
   const defenderLevel = options.defenderLevel ?? 1;
   const applyCasualties = options.applyCasualties ?? true;
-  // Calculate initial combat stats
+  // FID-20261002-013: the sanitized RAW totals anchor the encounter — the
+  // balance snapshot below is frozen from them (no band oscillation as
+  // casualties reshape the army), and the log reports the initial effective
+  // stats derived from them.
   const attackerStats = calculateCombatStats(attackerUnits);
   const defenderStats = calculateCombatStats(defenderUnits);
 
@@ -346,6 +507,16 @@ export async function resolveBattle(
   const defenderDealtMul = defenderBalance.damageDealtMultiplier;
   const defenderTakenMul = attackerBalance.damageTakenMultiplier;
 
+  // FID-20261002-013: the frozen stat-axis pipelines (one per side/axis).
+  // Populated by the flag/doctrine/effect blocks below in application order;
+  // the human-combat power step (§5.5) appends last. Applied to the LIVING
+  // stats before every strike via applyStatSteps.
+  const humanCtx = options.humanCombat;
+  const attackerStrSteps: StatStep[] = [];
+  const attackerDefSteps: StatStep[] = [];
+  const defenderStrSteps: StatStep[] = [];
+  const defenderDefSteps: StatStep[] = [];
+
   // FID-20260906-001 §5.4: Flag bearer fights at +25% unit STR/DEF (doc bonus
   // stack). Applied here — the single combat-resolution seam — so every battle
   // type (infantry, base, factory) respects the bearer advantage without
@@ -357,12 +528,12 @@ export async function resolveBattle(
       getBonusStack(defenderName),
     ]);
     if (attackerFlag.isBearer) {
-      attackerStats.totalSTR = Math.floor(attackerStats.totalSTR * attackerFlag.unitStrengthMultiplier);
-      attackerStats.totalDEF = Math.floor(attackerStats.totalDEF * attackerFlag.unitDefenseMultiplier);
+      attackerStrSteps.push(attackerFlag.unitStrengthMultiplier);
+      attackerDefSteps.push(attackerFlag.unitDefenseMultiplier);
     }
     if (defenderFlag.isBearer) {
-      defenderStats.totalSTR = Math.floor(defenderStats.totalSTR * defenderFlag.unitStrengthMultiplier);
-      defenderStats.totalDEF = Math.floor(defenderStats.totalDEF * defenderFlag.unitDefenseMultiplier);
+      defenderStrSteps.push(defenderFlag.unitStrengthMultiplier);
+      defenderDefSteps.push(defenderFlag.unitDefenseMultiplier);
     }
   } catch {
     // Never fail battle resolution because of the flag check.
@@ -377,19 +548,152 @@ export async function resolveBattle(
     const attackerDoctrine = doctrineMap[attackerName];
     const defenderDoctrine = doctrineMap[defenderName];
     if (attackerDoctrine) {
-      attackerStats.totalSTR = Math.floor(attackerStats.totalSTR * attackerDoctrine.strMul);
-      attackerStats.totalDEF = Math.floor(attackerStats.totalDEF * attackerDoctrine.defMul);
+      attackerStrSteps.push(attackerDoctrine.strMul);
+      attackerDefSteps.push(attackerDoctrine.defMul);
     }
     if (defenderDoctrine) {
-      defenderStats.totalSTR = Math.floor(defenderStats.totalSTR * defenderDoctrine.strMul);
-      defenderStats.totalDEF = Math.floor(defenderStats.totalDEF * defenderDoctrine.defMul);
+      defenderStrSteps.push(defenderDoctrine.strMul);
+      defenderDefSteps.push(defenderDoctrine.defMul);
     }
   } catch {
     // Never fail battle resolution because of the doctrine read.
   }
 
-  let attackerHP = calculateTotalHP(attackerUnits);
-  let defenderHP = calculateTotalHP(defenderUnits);
+  // FID-20261002-012 §5.2/§5.5 (R9/R14): clan research, combat discoveries
+  // and personal technologies join the SAME stack through the ONE composition
+  // seam — batch source reads (§5.7), multiplicative across categories,
+  // additive within, each modifier applied exactly once, and every read
+  // fail-soft to neutral (an outage must never fail an encounter). Role
+  // mapping: the attacker's tactical-warfare coefficients land on the STR
+  // axis; the defender's fortification coefficients apply ONLY in base raids
+  // (the tech's advertised meaning). Crit parameters ride the attacker side.
+  interface EncounterEffectState {
+    attackerEffects: ReturnType<typeof composeCombatEffects>;
+    defenderEffects: ReturnType<typeof composeCombatEffects>;
+  }
+  let encounterEffects: EncounterEffectState | null = null;
+  try {
+    // §5.7: one batch read for both players' role inputs (clan id, techs).
+    const { players: playersTable } = await import('@/lib/db/schema');
+    const { inArray: opInArray } = await import('drizzle-orm');
+    const sideRows = await db
+      .select({
+        username: playersTable.username,
+        clanId: playersTable.clanId,
+        unlockedTechs: playersTable.unlockedTechs,
+      })
+      .from(playersTable)
+      .where(opInArray(playersTable.username, [attackerName, defenderName]));
+
+    const attackerRow = sideRows.find((r) => r.username === attackerName);
+    const defenderRow = sideRows.find((r) => r.username === defenderName);
+
+    // Batch clan military bonuses for the involved clans (one query).
+    const { getClanBonusesForClans } = await import('@/lib/clanResearchService');
+    const clanMap = await getClanBonusesForClans([attackerRow?.clanId, defenderRow?.clanId]);
+    const attackerClan = attackerRow?.clanId ? clanMap[attackerRow.clanId] : undefined;
+    const defenderClan = defenderRow?.clanId ? clanMap[defenderRow.clanId] : undefined;
+
+    // Batch combat discovery bonuses for both sides (one query).
+    const { getDiscoveryBonusesForUsernames } = await import('@/lib/discoveryService');
+    const discoveryMap = await getDiscoveryBonusesForUsernames([attackerName, defenderName]);
+    const attackerDiscovery = discoveryMap[attackerName];
+    const defenderDiscovery = discoveryMap[defenderName];
+
+    // Role-filtered personal-tech coefficients. The ATTACKER's tactical-warfare
+    // boosts STR + crit on their strikes; the DEFENDER's fortification applies
+    // only while defending a base raid (BattleType.BaseRaid).
+    const attackerTech = getPersonalTechCombatEffects(attackerRow?.unlockedTechs);
+    const defenderTechFull = getPersonalTechCombatEffects(defenderRow?.unlockedTechs);
+    const defenderTech = {
+      attackStrPct: 0, // defensive role — attacking coefficients never apply
+      defensePct: battleType === BattleType.BaseRaid ? defenderTechFull.baseDefensePct : 0,
+      damageTakenReductionPct:
+        battleType === BattleType.BaseRaid ? defenderTechFull.baseRaidDamageReductionPct : 0,
+      critChanceBonus: 0,
+      critDamageMultiplier: 1,
+    };
+
+    encounterEffects = {
+      attackerEffects: composeCombatEffects({
+        clan: attackerClan ? { attackPct: attackerClan.attack || 0, defensePct: 0 } : undefined,
+        discovery: attackerDiscovery
+          ? {
+              unitStrengthPct: attackerDiscovery.unitStrength || 0,
+              unitDefensePct: attackerDiscovery.unitDefense || 0,
+              damageDealtPct: attackerDiscovery.damageDealt || 0,
+              damageTakenReductionPct: attackerDiscovery.damageTakenReduction || 0,
+            }
+          : undefined,
+        tech: {
+          attackStrPct: attackerTech.attackStrPct,
+          defensePct: 0,
+          damageTakenReductionPct: 0,
+          critChanceBonus: attackerTech.critChanceBonus,
+          critDamageMultiplier: attackerTech.critDamageMultiplier,
+        },
+      }),
+      defenderEffects: composeCombatEffects({
+        clan: defenderClan ? { attackPct: 0, defensePct: defenderClan.defense || 0 } : undefined,
+        discovery: defenderDiscovery
+          ? {
+              unitStrengthPct: defenderDiscovery.unitStrength || 0,
+              unitDefensePct: defenderDiscovery.unitDefense || 0,
+              damageDealtPct: defenderDiscovery.damageDealt || 0,
+              damageTakenReductionPct: defenderDiscovery.damageTakenReduction || 0,
+            }
+          : undefined,
+        tech: defenderTech,
+      }),
+    };
+
+    // Stat-axis effects join the frozen pipeline (FID-20261002-013: applied
+    // to the LIVING stats before every strike). The push is UNCONDITIONAL
+    // when the read succeeds — the historical seam floored the axes here
+    // exactly once, even at multiplier 1.
+    attackerStrSteps.push(encounterEffects.attackerEffects.strMul);
+    attackerDefSteps.push(encounterEffects.attackerEffects.defMul);
+    defenderStrSteps.push(encounterEffects.defenderEffects.strMul);
+    defenderDefSteps.push(encounterEffects.defenderEffects.defMul);
+  } catch (effectError) {
+    // Fail-soft: an effect-read outage must never fail an encounter (the same
+    // contract as the flag/doctrine stacks above) — neutral is the fallback.
+    console.error('⚠️ Encounter effect composition failed (neutral applied):', effectError);
+    encounterEffects = null;
+  }
+
+  // FID-20261002-013 §5.5: the advertised power band executes for HUMAN
+  // encounters. Applied ONCE per side as the pipeline's final step, from the
+  // same frozen balance snapshot the dealt/taken chain uses; PvE (context
+  // absent) never sees it.
+  if (humanCtx?.attackerIsHuman) {
+    attackerStrSteps.push(attackerBalance.powerMultiplier);
+    attackerDefSteps.push(attackerBalance.powerMultiplier);
+  }
+  if (humanCtx?.defenderIsHuman) {
+    defenderStrSteps.push(defenderBalance.powerMultiplier);
+    defenderDefSteps.push(defenderBalance.powerMultiplier);
+  }
+
+  // Initial effective stats for the log (combat stats inside the loop are
+  // recomputed from living copies every strike).
+  const attackerEffective = {
+    totalSTR: applyStatSteps(attackerStats.totalSTR, attackerStrSteps),
+    totalDEF: applyStatSteps(attackerStats.totalDEF, attackerDefSteps),
+  };
+  const defenderEffective = {
+    totalSTR: applyStatSteps(defenderStats.totalSTR, defenderStrSteps),
+    totalDEF: applyStatSteps(defenderStats.totalDEF, defenderDefSteps),
+  };
+
+  // FID-20261002-013: both armies deploy as ordered battle stacks (ONE
+  // seeded permutation per side, compressed into segments). The pool is the
+  // sum of the copies' current HP; each copy dies only when its own HP
+  // reaches zero and its partial damage carries into the next strike.
+  const attackerStack = buildArmyStack(attackerUnits);
+  const defenderStack = buildArmyStack(defenderUnits);
+  let attackerHP = stackHP(attackerStack);
+  let defenderHP = stackHP(defenderStack);
 
   const initialAttackerHP = attackerHP;
   const initialDefenderHP = defenderHP;
@@ -398,9 +702,6 @@ export async function resolveBattle(
   const rounds: CombatRound[] = [];
   let roundNumber = 0;
 
-  // Track surviving units
-  let attackerSurvivors = [...attackerUnits];
-  let defenderSurvivors = [...defenderUnits];
   const attackerCasualties: Unit[] = [];
   const defenderCasualties: Unit[] = [];
 
@@ -420,64 +721,84 @@ export async function resolveBattle(
   while (attackerHP > 0 && defenderHP > 0 && roundNumber < 100) {
     roundNumber++;
 
-    const attackerPoolAtRoundStart = attackerHP;
-    const defenderPoolAtRoundStart = defenderHP;
+    // FID-20261002-012 §5.2: the effect seam's damage-axis multipliers join
+    // the balance dealt/taken chain — each modifier used exactly ONCE (§5.6).
+    // damageTakenMul scales the damage THAT SIDE TAKES: the attacker's strike
+    // is scaled by the DEFENDER's reduction (fortification), the counter by
+    // the ATTACKER's — a defense bonus never inflates the defense's damage.
+    const attackerDealtEffects = encounterEffects?.attackerEffects.damageDealtMul ?? 1;
+    const defenderTakenEffects = encounterEffects?.defenderEffects.damageTakenMul ?? 1;
+    const defenderDealtEffects = encounterEffects?.defenderEffects.damageDealtMul ?? 1;
+    const attackerTakenEffects = encounterEffects?.attackerEffects.damageTakenMul ?? 1;
+    // §5.4: tactical-warfare's critical is drawn ONCE PER ACTUAL STRIKE (never
+    // per stat lookup); the roll is skipped entirely at zero chance so suites
+    // without the tech stay byte-identical.
+    const attackerCritChance = encounterEffects?.attackerEffects.critChance ?? 0;
+    const attackerCritDamage = encounterEffects?.attackerEffects.critDamageMultiplier ?? 1;
+    const attackerCrit = attackerCritChance > 0 && Math.random() < attackerCritChance;
+    const defenderCritChance = encounterEffects?.defenderEffects.critChance ?? 0;
+    const defenderCritDamage = encounterEffects?.defenderEffects.critDamageMultiplier ?? 1;
+    const defenderCrit = defenderCritChance > 0 && Math.random() < defenderCritChance;
+
+    // FID-20261002-013: strikes are computed from LIVING stats — each side's
+    // totals are recomputed from its surviving copies and transformed by the
+    // frozen stat-axis pipeline before every strike (firepower declines as
+    // copies die — the R6 repair).
+    const attackerLiving = stackCombatStats(attackerStack);
+    const defenderLiving = stackCombatStats(defenderStack);
+    const attackerEffSTR = applyStatSteps(attackerLiving.totalSTR, attackerStrSteps);
+    const defenderEffDEF = applyStatSteps(defenderLiving.totalDEF, defenderDefSteps);
 
     // Attacker strike (WITH LEVEL GAP PROTECTION + FID-20260915-004 balance)
-    const attackerDamage = Math.max(5, Math.floor(
-      calculateDamage(attackerStats.totalSTR, defenderStats.totalDEF, attackerLevel, defenderLevel) * attackerDealtMul * attackerTakenMul
-    ));
-    const defenderHPDeducted = Math.min(attackerDamage, defenderPoolAtRoundStart);
-    defenderHP = defenderPoolAtRoundStart - defenderHPDeducted;
+    let attackerStrike = calculateDamage(attackerEffSTR, defenderEffDEF, attackerLevel, defenderLevel) * attackerDealtMul * attackerTakenMul;
+    if (attackerCrit) attackerStrike *= attackerCritDamage;
+    const attackerDamage = Math.max(5, Math.floor(attackerStrike * attackerDealtEffects * defenderTakenEffects));
+    const defenderDeaths = absorbDamage(defenderStack, attackerDamage, defenderCasualties);
+    defenderHP = stackHP(defenderStack);
 
     // Defender counter-strikes only while alive (balance-adjusted, same seam)
+    // — with its OWN post-loss living stats: only surviving defenders counter,
+    // at the firepower they still have (wounds never add strength).
     let defenderDamage = 0;
-    let attackerHPDeducted = 0;
+    let attackerDeaths = 0;
     if (defenderHP > 0) {
-      defenderDamage = Math.max(5, Math.floor(
-        calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel, counterDivisor) * defenderDealtMul * defenderTakenMul
-      ));
-      attackerHPDeducted = Math.min(defenderDamage, attackerPoolAtRoundStart);
-      attackerHP = attackerPoolAtRoundStart - attackerHPDeducted;
+      const defenderLivingPost = stackCombatStats(defenderStack);
+      const attackerLivingPost = stackCombatStats(attackerStack);
+      const defenderEffDEFPost = applyStatSteps(defenderLivingPost.totalDEF, defenderDefSteps);
+      const attackerEffSTRPost = applyStatSteps(attackerLivingPost.totalSTR, attackerStrSteps);
+      let defenderStrike = calculateDamage(defenderEffDEFPost, attackerEffSTRPost, defenderLevel, attackerLevel, counterDivisor) * defenderDealtMul * defenderTakenMul;
+      if (defenderCrit) defenderStrike *= defenderCritDamage;
+      defenderDamage = Math.max(5, Math.floor(defenderStrike * defenderDealtEffects * attackerTakenEffects));
+      attackerDeaths = absorbDamage(attackerStack, defenderDamage, attackerCasualties);
+      attackerHP = stackHP(attackerStack);
     }
 
-    // Calculate unit losses from HP actually deducted (never raw overkill)
-    const attackerLosses = calculateUnitLosses(attackerHPDeducted, attackerSurvivors);
-    const defenderLosses = calculateUnitLosses(defenderHPDeducted, defenderSurvivors);
-
-    attackerCasualties.push(...attackerLosses.casualties);
-    defenderCasualties.push(...defenderLosses.casualties);
-    attackerSurvivors = attackerLosses.survivors;
-    defenderSurvivors = defenderLosses.survivors;
-
-    // FID-20260915-001: a side whose HP pool reached 0 is DESTROYED — its
-    // remaining units are casualties. Without this, per-round kill counts floor
-    // independently and an army can die with zero recorded losses, leaving
-    // applyBattleResults holding a phantom army for a defeated side.
-    if (defenderHP === 0 && defenderSurvivors.length > 0) {
-      defenderCasualties.push(...defenderSurvivors);
-      defenderSurvivors = [];
-    }
-    if (attackerHP === 0 && attackerSurvivors.length > 0) {
-      attackerCasualties.push(...attackerSurvivors);
-      attackerSurvivors = [];
-    }
-
-    // Record round
+    // Record round — unitsLost counts the copies that died THIS round from HP
+    // actually absorbed (last-hit exhaustion included). No hidden wipe
+    // casualties: a pool at 0 IS an empty stack, so per-round death sums
+    // equal the participant totals by construction (FID-20261002-013 §5.4).
     rounds.push({
       roundNumber,
       attackerDamage,
       defenderDamage,
       attackerHP,
       defenderHP,
-      attackerUnitsLost: attackerLosses.casualties.length,
-      defenderUnitsLost: defenderLosses.casualties.length
+      attackerUnitsLost: attackerDeaths,
+      defenderUnitsLost: defenderDeaths,
+      // FID-20261002-012 §5.4: truthful crit provenance (optional fields —
+      // pre-tech logs parse unchanged).
+      ...(attackerCrit ? { attackerCritical: true } : {}),
+      ...(defenderCrit ? { defenderCritical: true } : {}),
     });
 
-    // Safety limit — a capped battle is a REPELLED raid (defender holds).
+    // Safety limit — FID-20261002-013: a TERMINAL zero-HP on the cap round
+    // resolves first (that round's kills are real); only a LIVE-LIVE standoff
+    // is the repelled raid (defender holds).
     if (roundNumber >= 100) {
-      repelled = true;
-      console.warn('⚠️ Battle exceeded 100 rounds — raid repelled (defender holds)');
+      if (attackerHP > 0 && defenderHP > 0) {
+        repelled = true;
+        console.warn('⚠️ Battle exceeded 100 rounds — raid repelled (defender holds)');
+      }
       break;
     }
   }
@@ -524,12 +845,15 @@ export async function resolveBattle(
     attacker: {
       username: attackerName,
       units: attackerUnits,
-      totalSTR: attackerStats.totalSTR,
-      totalDEF: attackerStats.totalDEF,
+      totalSTR: attackerEffective.totalSTR,
+      totalDEF: attackerEffective.totalDEF,
       initialHP: initialAttackerHP,
       finalHP: attackerHP,
       unitsLost: attackerCasualties.length,
       unitsCaptured: attackerCapturedUnits.length,
+      // FID-20261002-013 §5.4: conservation exposure — initial copies =
+      // survivors + casualties (per-round sums already equal unitsLost).
+      survivorCount: attackerUnits.length - attackerCasualties.length,
       // FID-20260912-093: per-type casualty breakdown (drives inventory writes)
       casualtiesByType: casualtiesByType(attackerCasualties),
       // Aliases for component compatibility
@@ -541,12 +865,13 @@ export async function resolveBattle(
     defender: {
       username: defenderName,
       units: defenderUnits,
-      totalSTR: defenderStats.totalSTR,
-      totalDEF: defenderStats.totalDEF,
+      totalSTR: defenderEffective.totalSTR,
+      totalDEF: defenderEffective.totalDEF,
       initialHP: initialDefenderHP,
       finalHP: defenderHP,
       unitsLost: defenderCasualties.length,
       unitsCaptured: defenderCapturedUnits.length,
+      survivorCount: defenderUnits.length - defenderCasualties.length,
       casualtiesByType: casualtiesByType(defenderCasualties),
       // Aliases for component compatibility
       startingHP: initialDefenderHP,
@@ -695,7 +1020,13 @@ export async function executeInfantryAttack(
   
   const defenderUnits = defenderPlayerUnits.flatMap(pu => playerUnitToUnits(pu, defenderId));
 
-  // Resolve battle WITH LEVEL GAP PROTECTION
+  // Resolve battle WITH LEVEL GAP PROTECTION.
+  // FID-20261002-013 §5.5: the human-combat context is derived SERVER-side
+  // from the players rows (never client JSON). Infantry is the human-vs-human
+  // surface, so when BOTH rows are human the frozen balance powerMultiplier
+  // joins both stat axes. A bot on either side (bot rows live in the players
+  // table) omits the context — the human-role multiplier never touches PvE.
+  const bothHuman = !attacker.isBot && !defender.isBot;
   const battleLog = await resolveBattle(
     attackerUnits,
     defenderUnits,
@@ -703,7 +1034,13 @@ export async function executeInfantryAttack(
     defenderId,
     BattleType.Infantry,
     undefined,
-    { attackerLevel: attacker.level, defenderLevel: defender.level }
+    {
+      attackerLevel: attacker.level,
+      defenderLevel: defender.level,
+      ...(bothHuman
+        ? { humanCombat: { attackerIsHuman: true, defenderIsHuman: true } satisfies HumanCombatContext }
+        : {}),
+    }
   );
 
   // Apply battle results to database
@@ -1175,6 +1512,43 @@ export async function applyDefenderCasualtiesWithFloor(
   return { unitsLost: capped.unitsLost, casualtiesByType: capped.casualtiesByType };
 }
 
+/**
+ * FID-20261002-003 §5.5: transaction-aware defender-casualty application for
+ * the human base-raid path — the SAME capDefenderCasualties logic and floor,
+ * reading and writing through the caller's transaction (the defender row is
+ * already locked by the raid). The attacker's reported losses drive the drain;
+ * tallies are re-stamped onto the battleLog by the caller.
+ */
+export async function applyDefenderCasualtiesWithFloorTx(
+  battleLog: BattleLog,
+  preBattlePool: number,
+  tx: TreasuryTx
+): Promise<{ unitsLost: number; casualtiesByType: Partial<Record<UnitType, number>> }> {
+  const [defenderResult] = await tx.select().from(players).where(eq(players.username, battleLog.defender.username)).limit(1);
+  if (!defenderResult) {
+    throw new Error('Defender not found during casualty application');
+  }
+  const defenderRow = defenderResult as unknown as { units?: PlayerUnit[] | null };
+
+  const capped = capDefenderCasualties(
+    (defenderRow.units ?? []) as PlayerUnit[],
+    battleLog.defender.casualtiesByType,
+    battleLog.defender.unitsLost,
+    preBattlePool
+  );
+
+  const newStats = calculatePlayerUnitStats(capped.finalUnits);
+  await tx.update(players)
+    .set({
+      units: capped.finalUnits,
+      totalStrength: newStats.totalSTR,
+      totalDefense: newStats.totalDEF,
+    })
+    .where(eq(players.username, battleLog.defender.username));
+
+  return { unitsLost: capped.unitsLost, casualtiesByType: capped.casualtiesByType };
+}
+
 async function applyBattleResults(battleLog: BattleLog): Promise<void> {
   // Get current player states
   const [attackerResult] = await db.select().from(players).where(eq(players.username, battleLog.attacker.username)).limit(1);
@@ -1266,25 +1640,6 @@ async function applyBattleResults(battleLog: BattleLog): Promise<void> {
       totalDefense: defenderNewStats.totalDEF
     })
     .where(eq(players.username, battleLog.defender.username));
-}
-
-/**
- * Calculate combat stats from PlayerUnit array
- * Similar to calculateCombatStats but works with PlayerUnits
- * 
- * @param playerUnits - Array of PlayerUnits
- * @returns Combat statistics
- */
-function calculatePlayerUnitStats(playerUnits: PlayerUnit[]): { totalSTR: number; totalDEF: number } {
-  let totalSTR = 0;
-  let totalDEF = 0;
-
-  for (const playerUnit of playerUnits) {
-    totalSTR += playerUnit.strength * playerUnit.quantity;
-    totalDEF += playerUnit.defense * playerUnit.quantity;
-  }
-
-  return { totalSTR, totalDEF };
 }
 
 /**
@@ -1532,11 +1887,17 @@ function playerRowToPlayer(row: typeof players.$inferSelect): Player {
  * - Minimum 5 damage per strike; sequential resolution (dead sides never
  *   counter); 100-round cap = repelled raid (DefenderWin)
  *
- * UNIT CASUALTIES:
- * - HP actually deducted converts to unit deaths (overkill clamped)
- * - Deaths distributed randomly (battle chaos)
- * - Casualties permanent (units removed from army)
- * - Destroyed side's remainder counts as casualties (no phantom armies)
+ * UNIT CASUALTIES (FID-20261002-013):
+ * - Strike damage is absorbed front-to-back through the ordered stack; a
+ *   copy dies only when its OWN HP reaches zero and partial damage carries
+ *   into the next strike (the damaged frontier is the only split copy)
+ * - Deaths are recorded in the round that dealt the killing damage —
+ *   per-round sums equal the participant totals; a pool at 0 IS an empty
+ *   stack, so there are no hidden wipe casualties
+ * - Surviving copies keep full stats: STR/DEF are recomputed from LIVING
+ *   copies before every strike, so firepower declines with casualties
+ * - Casualties permanent (units removed from army); survivorCount exposes
+ *   initial copies = survivors + casualties on the log
  *
  * UNIT CAPTURE (PvP only):
  * - Winner captures 10-15% of defeated units

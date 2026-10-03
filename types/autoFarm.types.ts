@@ -48,7 +48,12 @@ export interface AutoFarmConfig {
   
   // Premium settings
   isVIP: boolean;                      // VIP status (determines speed tier)
-  
+
+  // FID-20261002-012 §5.3: advanced-mining ownership (from /api/research) —
+  // paces the client at the authoritative 2400ms resource-harvest cadence
+  // instead of the conservative 3000ms. Default false = conservative.
+  hasAdvancedMining?: boolean;
+
   // Note: Harvest settings are always ALL by default
   // (metal, energy, caves, forests) - no toggles needed
 }
