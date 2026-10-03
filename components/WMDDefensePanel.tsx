@@ -34,6 +34,11 @@ interface DefenseBattery {
   totalAttempts: number;
   health: number;
   repairing: boolean;
+  /** FID-20261002-007: the persisted shot-recovery deadline (timestamptz).
+   * COOLDOWN batteries recover AUTOMATICALLY at this deadline (shared
+   * due-recovery predicate — scheduled completer + lazy eligibility); paid
+   * repair (repairCompletesAt) remains the separate DAMAGED path. */
+  cooldownUntil?: string | null;
   createdAt: Date;
 }
 
@@ -267,6 +272,17 @@ export default function WMDDefensePanel() {
                   ✓ {battery.successfulIntercepts} / ✗ {battery.failedIntercepts}
                 </span>
               </div>
+
+              {/* FID-20261002-007: the stored cooldown deadline — recovery is
+                  automatic; the countdown reads the persisted timestamptz. */}
+              {battery.status === 'COOLDOWN' && battery.cooldownUntil && (
+                <div className="flex justify-between">
+                  <span className="nn-lab" style={{ fontSize: 9.5 }}>Recovering</span>
+                  <span className="nn-num nn-text-amber" style={{ fontSize: 10 }}>
+                    ready {new Date(battery.cooldownUntil).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
 
               {/* Actions — destructive path magenta only */}
               <div className="flex gap-2" style={{ marginTop: 4 }}>

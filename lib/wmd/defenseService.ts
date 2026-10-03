@@ -26,8 +26,9 @@
  * - Drizzle ORM for persistence
  */
 
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, lte, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
+import type { TreasuryTx } from '@/lib/db/treasuryLock';
 import { wmdDefenseBatteries, wmdInterceptions } from '@/lib/db/schema/wmd';
 import { generateId } from '@/lib/utils'; // FID-20260919-017: 23-char PKs that fit varchar(24)
 import {
@@ -61,6 +62,82 @@ export async function getDefenderInterceptions(
     console.error('Error getting interception history:', error);
     return [];
   }
+}
+
+/**
+ * FID-20261002-007 §5.4 — the ONE due-recovery predicate shared by the
+ * scheduled completer and the lazy eligibility path: a battery returns to IDLE
+ * when it is COOLDOWN and its persisted shot deadline has passed. Status/deadline
+ * predicates make the transition idempotent and non-destructive: a paid-repair
+ * (DAMAGED), upgrade or later shot can never be overwritten, and repeated
+ * sweeps do not reset anything (COOLDOWN rows with a FUTURE deadline are
+ * untouched). Returns the recovered battery ids.
+ */
+export function dueCooldownRecoveryPredicate(clanId?: string | null): SQL {
+  const conditions = [
+    eq(wmdDefenseBatteries.status, BatteryStatus.COOLDOWN),
+    isNotNull(wmdDefenseBatteries.cooldownUntil),
+    lte(wmdDefenseBatteries.cooldownUntil, sql`NOW()`),
+  ];
+  if (clanId) conditions.push(eq(wmdDefenseBatteries.clanId, clanId));
+  return and(...conditions) as SQL;
+}
+
+/**
+ * Transaction-aware core of §5.4: recover every due COOLDOWN battery (all
+ * clans, or one clan) on the caller's transaction. Used by the missile-tracker
+ * impact transaction (lazy eligibility) and wrapped by
+ * `recoverDueCooldownBatteries` for non-tx callers.
+ */
+export async function recoverDueCooldownsTx(
+  tx: TreasuryTx | typeof db,
+  clanId?: string | null,
+  now: Date = new Date()
+): Promise<Array<{ id: string; batteryId: string }>> {
+  const recovered = await tx
+    .update(wmdDefenseBatteries)
+    .set({ status: BatteryStatus.IDLE, cooldownUntil: null, updatedAt: now })
+    .where(dueCooldownRecoveryPredicate(clanId))
+    .returning({ id: wmdDefenseBatteries.id, batteryId: wmdDefenseBatteries.batteryId });
+  return recovered;
+}
+
+/** Non-tx wrapper: due-recovery sweep for read/eligibility refresh paths. */
+export async function recoverDueCooldownBatteries(
+  clanId?: string | null,
+  now: Date = new Date()
+): Promise<Array<{ id: string; batteryId: string }>> {
+  return recoverDueCooldownsTx(db, clanId, now);
+}
+
+/**
+ * FID-20261002-007 §5.2 — the ONE battery-shot state transition both live
+ * interception paths share: IDLE→COOLDOWN reserved CONDITIONALLY (the row must
+ * still be IDLE under the lock — competing missiles cannot consume one idle
+ * battery twice) and the deadline persisted as `now + cooldownDuration`
+ * milliseconds. A failed reservation (zero updated rows) reports failure —
+ * the caller cannot count a battery it did not actually consume.
+ * The shot time and duration are caller-supplied so a transaction retry
+ * replays the same reservation instead of extending it.
+ */
+export async function reserveBatteryShotTx(
+  tx: TreasuryTx,
+  batteryRowId: string,
+  cooldownDurationMs: number,
+  shotTime: Date,
+  now: Date = new Date()
+): Promise<boolean> {
+  const reserved = await tx
+    .update(wmdDefenseBatteries)
+    .set({
+      status: BatteryStatus.COOLDOWN,
+      // The durable deadline: shot time + the battery's OWN configured duration.
+      cooldownUntil: new Date(shotTime.getTime() + cooldownDurationMs),
+      updatedAt: now,
+    })
+    .where(and(eq(wmdDefenseBatteries.id, batteryRowId), eq(wmdDefenseBatteries.status, BatteryStatus.IDLE)))
+    .returning({ id: wmdDefenseBatteries.id });
+  return reserved.length > 0;
 }
 
 /**
@@ -128,13 +205,25 @@ export async function deployBattery(
 }
 
 /**
- * Attempt missile interception
+ * Attempt missile interception (the defense POST path — the second live
+ * writer, FID-20261002-007 R13).
+ *
+ * §5.4: due COOLDOWN batteries are recovered BEFORE selection, so the manual
+ * path works even if the background scheduler is down (lazy eligibility).
+ * §5.2: every shot goes through the shared conditional reservation
+ * (`reserveBatteryShotTx`) — the battery must still be IDLE under the lock
+ * and the deadline is persisted as now + the battery's own cooldownDuration.
+ * A lost reservation (competing missile took the battery) does NOT count as a
+ * shot and never reports a successful interception.
  */
 export async function attemptInterception(
   missileId: string,
   defenderId: string
 ): Promise<{ success: boolean; result: InterceptionResult; message: string }> {
   try {
+    // §5.4 lazy eligibility: recover due cooldowns before selecting batteries.
+    await recoverDueCooldownBatteries(defenderId);
+
     const batteriesResult = await db.select()
       .from(wmdDefenseBatteries)
       .where(and(
@@ -156,12 +245,15 @@ export async function attemptInterception(
     }
     
     for (const battery of batteries) {
-      const success = Math.random() < parseFloat(battery.interceptChance ?? '0');
+      // §5.2 shared transition: conditional IDLE→COOLDOWN with the persisted
+      // deadline. A competing missile that consumed this battery first leaves
+      // zero updated rows — skip to the next battery instead of double-firing.
+      const reserved = await db.transaction((tx) =>
+        reserveBatteryShotTx(tx, battery.id, battery.cooldownDuration ?? 0, new Date())
+      );
+      if (!reserved) continue;
       
-      await db.update(wmdDefenseBatteries).set({
-        status: BatteryStatus.COOLDOWN,
-        updatedAt: new Date(),
-      }).where(eq(wmdDefenseBatteries.id, battery.id));
+      const success = Math.random() < parseFloat(battery.interceptChance ?? '0');
       
       if (success) {
         await db.insert(wmdInterceptions).values({
@@ -202,11 +294,16 @@ export async function attemptInterception(
 
 /**
  * Get player's defense batteries
+ *
+ * FID-20261002-007 §5.4: the read refresh applies due recovery first —
+ * idempotent (status/deadline predicates), never resets a future shot
+ * deadline, so the panel sees recovered batteries even between scheduler runs.
  */
 export async function getPlayerBatteries(
   ownerId: string
 ): Promise<Array<typeof wmdDefenseBatteries.$inferSelect>> {
   try {
+    await recoverDueCooldownBatteries(ownerId);
     const result = await db.select()
       .from(wmdDefenseBatteries)
       .where(eq(wmdDefenseBatteries.clanId, ownerId))

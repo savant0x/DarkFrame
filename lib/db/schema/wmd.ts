@@ -88,6 +88,16 @@ export const wmdDefenseBatteries = pgTable('wmd_defense_batteries', {
   status: varchar('status', { length: 20 }).notNull(),
   interceptChance: numeric('intercept_chance', { precision: 5, scale: 2 }).default('0'),
   cooldownDuration: integer('cooldown_duration').default(0),
+  // FID-20261002-007 §5.1: the durable shot-recovery deadline. Writers: both
+  // live interception paths (defenseService.attemptInterception — the defense
+  // POST endpoint; missileTracker.processDueMissiles — the tracker/lazy tick),
+  // each through the shared conditional reservation in defenseService; the
+  // deadline is persisted as now + cooldownDuration milliseconds at shot time.
+  // Readers: defenseRepairCompleter (scheduled recovery) and the shared
+  // eligibility path (recoverDueCooldownsTx, applied before every battery
+  // selection so lazy ticks recover even without the scheduler). NULL = not in
+  // cooldown; repairCompletesAt stays the DISTINCT paid-repair deadline.
+  cooldownUntil: timestamp('cooldown_until', { withTimezone: true }),
   batteryId: varchar('battery_id', { length: 50 }).notNull(),
   builtAt: timestamp('built_at', { withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
@@ -95,6 +105,9 @@ export const wmdDefenseBatteries = pgTable('wmd_defense_batteries', {
 }, (table) => [
   index('wmd_defense_clan_idx').on(table.clanId),
   index('wmd_defense_status_idx').on(table.status),
+  // FID-20261002-007 §5.1: due-recovery index — the completer and the shared
+  // eligibility path both drive recovery off (status, cooldownUntil).
+  index('wmd_defense_cooldown_due_idx').on(table.status, table.cooldownUntil),
 ]);
 
 // wmdVotes (wmd_votes) was retired in FID-20260919-017: zero references

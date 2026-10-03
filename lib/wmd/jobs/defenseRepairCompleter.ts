@@ -25,6 +25,7 @@
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { wmdDefenseBatteries } from '@/lib/db/schema/wmd';
+import { dueCooldownRecoveryPredicate } from '@/lib/wmd/defenseService'; // FID-20261002-007 §5.3 (ONE due-recovery predicate)
 
 type Database = typeof db;
 
@@ -39,7 +40,26 @@ enum BatteryStatus {
 export async function defenseRepairCompleter(_db: Database): Promise<void> {
   try {
     const now = new Date();
-    
+
+    // FID-20261002-007 §5.3: recover due COOLDOWN rows using the SHARED
+    // status/deadline predicate + RETURNING — a single conditional UPDATE that
+    // can never override DAMAGED/UPGRADING rows or a battery that fired again
+    // (future deadline). This is the scheduled leg; the lazy leg (shared
+    // eligibility path in the interception transactions) uses the same
+    // predicate, so a down scheduler cannot strand batteries in COOLDOWN.
+    const recovered = await db
+      .update(wmdDefenseBatteries)
+      .set({ status: 'IDLE', cooldownUntil: null, updatedAt: now })
+      .where(dueCooldownRecoveryPredicate())
+      .returning({ id: wmdDefenseBatteries.id, batteryId: wmdDefenseBatteries.batteryId });
+    if (recovered.length > 0) {
+      for (const battery of recovered) {
+        console.log(`[DefenseRepairCompleter] Battery ${battery.batteryId} cooldown expired. Status: IDLE`);
+      }
+      console.log(`[DefenseRepairCompleter] Recovered ${recovered.length} battery cooldowns`);
+    }
+
+    // Paid-repair completion (DISTINCT deadline, unchanged contract).
     const completedRepairs = await db
       .select()
       .from(wmdDefenseBatteries)
